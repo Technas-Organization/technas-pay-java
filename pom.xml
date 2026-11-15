@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>fr.technas</groupId>
   <artifactId>technas-pay</artifactId>
-  <version>0.2.0</version>
+  <version>0.2.1</version>
   <name>Technas Pay</name>
   <description>Encaisser du mobile money et des paiements par carte via Technas Pay depuis Java ou Kotlin (Spring Boot, Jakarta Servlet).</description>
   <url>https://github.com/Technas-Organization/technas-pay-java</url>
