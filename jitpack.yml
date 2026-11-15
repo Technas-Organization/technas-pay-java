@@ -1,0 +1,5 @@
+# Installation depuis GitHub par JitPack (aucune publication sur Maven Central).
+jdk:
+  - openjdk17
+install:
+  - mvn -B -q install -DskipTests

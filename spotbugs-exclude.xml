@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- Les records exposent des listes et cartes déjà rendues immuables (List.copyOf, Map.copyOf, unmodifiableMap). -->
+  <Match><Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/><Package name="~fr\.technas\.pay\.(model|app|webhook)"/></Match>
+  <!-- Une exception ne se sérialise pas pour être relue : après une désérialisation, details() est vide, jamais faux. -->
+  <Match><Class name="fr.technas.pay.TechnasPayException"/><Bug pattern="SE_TRANSIENT_FIELD_NOT_RESTORED"/></Match>
+  <!-- L'adaptateur Servlet LIT la requête : c'est son rôle. En-têtes et paramètres ne servent qu'à
+       authorize (votre code) et à resolveOrder (votre base) ; aucun n'est exécuté ni réécrit. -->
+  <Match><Class name="fr.technas.pay.servlet.TechnasPayServlet"/><Bug pattern="SERVLET_HEADER,SERVLET_PARAMETER"/></Match>
+  <!-- Réponse JSON (application/json, nosniff) écrite par Json.writeForHttp, qui échappe < > &amp; ' :
+       ServletTest.reponseSansBaliseHtml le prouve. -->
+  <Match><Class name="fr.technas.pay.servlet.TechnasPayServlet"/><Bug pattern="XSS_SERVLET"/></Match>
+</FindBugsFilter>
