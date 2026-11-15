@@ -1,5 +1,6 @@
 # Installation depuis GitHub par JitPack (aucune publication sur Maven Central).
+# Maven épinglé par le wrapper : celui de JitPack est trop ancien pour les extensions du projet.
 jdk:
   - openjdk17
 install:
-  - mvn -B -q install -DskipTests
+  - ./mvnw -B -q install -DskipTests
