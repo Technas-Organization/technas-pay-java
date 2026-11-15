@@ -52,7 +52,7 @@ public final class TechnasPay {
     public static final String VERSION = "0.1.0";
     public static final String DEFAULT_BASE_URL = "https://pay-api.technas.fr";
     public static final String SECRET_ENV = "TECHNAS_PAY_SECRET";
-    private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([^.\\s]+)\\.([^.\\s]+)$");
+    private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([\\x21-\\x2d\\x2f-\\x7e]+)\\.([\\x21-\\x2d\\x2f-\\x7e]+)$"); // ASCII imprimable sans « . »
     private static final Set<String> LOCAL_HOSTS = Set.of("localhost", "127.0.0.1", "::1", "[::1]");
 
     private final String secret;
@@ -97,6 +97,10 @@ public final class TechnasPay {
     }
 
     private record Secrets(String mode, String apiKey, String webhookSecret) {
+        @Override
+        public String toString() {
+            return "Secrets[mode=" + mode + "]";
+        }
     }
 
     private Secrets secrets() {
@@ -159,8 +163,14 @@ public final class TechnasPay {
         return new TechnasPayException(code == null ? "request_failed" : code, message == null ? "Réponse HTTP " + status : message, status, details);
     }
 
+    private static final Pattern SEGMENT = Pattern.compile("^[A-Za-z0-9_-]{1,128}$");
+
+    /** Un identifiant dans un chemin : jamais « . », « .. », « / » ni rien d'encodé (un proxy pourrait le normaliser). */
     private static String seg(String id) {
-        return URLEncoder.encode(id, StandardCharsets.UTF_8).replace("+", "%20");
+        if (id == null || !SEGMENT.matcher(id).matches()) {
+            throw new TechnasPayException("invalid_request", "Identifiant invalide");
+        }
+        return id;
     }
 
     private static String q(String v) {
@@ -517,7 +527,11 @@ public final class TechnasPay {
             return this;
         }
 
+        /** Fenêtre d'acceptation d'un avis, de 1 s à 1 h (défaut 300 s) : au-delà, un rejeu passerait. */
         public Builder webhookToleranceSeconds(long v) {
+            if (v < 1 || v > 3600) {
+                throw new TechnasPayException("invalid_request", "webhookToleranceSeconds : de 1 à 3600");
+            }
             webhookTolerance = v;
             return this;
         }

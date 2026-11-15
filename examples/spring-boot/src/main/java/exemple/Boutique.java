@@ -57,8 +57,11 @@ public class Boutique {
         }
 
         @PostMapping("/commandes/{id}/payer")
-        ResponseEntity<Void> payer(@PathVariable String id) {
+        ResponseEntity<Void> payer(@PathVariable String id, Principal user) {
             Order o = ORDERS.get(id); // relue EN BASE : le montant ne vient jamais du navigateur
+            if (o == null || user == null || !o.owner().equals(user.getName())) {
+                return ResponseEntity.notFound().build(); // jamais la commande d'un autre
+            }
             Payment p = pay.askForPayment(PaymentRequest.builder()
                     .amount(o.total())                                    // 5000 = 5 000 FCFA
                     .reference(Status.retryReference(o.id(), o.attempt())) // "42-1" : une référence = un essai

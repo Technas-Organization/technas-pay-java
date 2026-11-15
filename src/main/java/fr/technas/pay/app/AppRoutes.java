@@ -35,6 +35,8 @@ import java.util.regex.Pattern;
 public final class AppRoutes {
     private static final Pattern PAYMENT_PATH = Pattern.compile("^/payments/([^/]+)$");
     private static final Pattern ATTEMPT = Pattern.compile("^(.+?)-(?:card-)?\\d+$");
+    /** Identifiant de commande ou de paiement accepté de l'app : court, sans « / », « . » ni espace. */
+    private static final Pattern ID = Pattern.compile("^[A-Za-z0-9_-]{1,128}$");
 
     private final TechnasPay pay;
     private final Function<AppRequest, ?> authorize;
@@ -78,12 +80,42 @@ public final class AppRoutes {
         if ("network_error".equals(e.code()) || e.status() >= 500 || e.status() == 0) {
             return err(502, e.code(), e.getMessage(), true);
         }
+        // Clé du MARCHAND refusée par Technas : jamais un 401/403 à l'app (elle croirait l'utilisateur
+        // déconnecté), ni le détail du compte marchand.
+        if (e.status() == 401 || e.status() == 403) {
+            return err(502, "upstream_error", "Service de paiement indisponible", false);
+        }
         return err(e.status(), e.code(), e.getMessage(), e.retryable());
     }
 
-    private static String orderIdOf(String reference) {
-        Matcher m = ATTEMPT.matcher(reference);
-        return m.matches() ? m.group(1) : reference;
+    /**
+     * La commande d'un paiement : {@code metadata.order_id} (posé par ces routes) d'abord, sinon lue
+     * dans la référence. La référence doit être EXACTEMENT {@code orderId-N} ou {@code orderId-card-N} :
+     * sinon {@code null} (« x-card-1 » ne peut pas être pris pour une commande « x » si le paiement
+     * dit « x-card »).
+     */
+    private static String orderIdOf(Payment payment) {
+        Object meta = payment.metadata() == null ? null : payment.metadata().get("order_id");
+        String reference = payment.reference();
+        String candidate;
+        if (meta instanceof String s) {
+            candidate = s;
+        } else {
+            Matcher m = ATTEMPT.matcher(reference);
+            if (!m.matches()) {
+                return null;
+            }
+            candidate = m.group(1);
+        }
+        return reference.matches(Pattern.quote(candidate) + "-(?:card-)?\\d+") ? candidate : null;
+    }
+
+    /** {@code null}, {@code false} et {@code Optional.empty()} refusent ; un {@code Optional} plein rend sa valeur. */
+    private static Object granted(Object v) {
+        if (v instanceof java.util.Optional<?> o) {
+            return o.orElse(null);
+        }
+        return Boolean.FALSE.equals(v) ? null : v;
     }
 
     private Payment start(String orderId, AppOrder order, String method) {
@@ -147,8 +179,8 @@ public final class AppRoutes {
         if (authorizeAdmin == null) {
             return err(404, "not_found", "Route inconnue");
         }
-        Object admin = authorizeAdmin.apply(req);
-        if (admin == null || Boolean.FALSE.equals(admin)) {
+        Object admin = granted(authorizeAdmin.apply(req));
+        if (admin == null) {
             return err(403, "forbidden", "Réservé au marchand");
         }
         try {
@@ -197,8 +229,8 @@ public final class AppRoutes {
         if (!known) {
             return err(404, "not_found", "Route inconnue");
         }
-        Object user = authorize.apply(req);
-        if (user == null || Boolean.FALSE.equals(user)) {
+        Object user = granted(authorize.apply(req));
+        if (user == null) {
             return err(401, "unauthorized", "Connexion requise");
         }
         try {
@@ -206,6 +238,9 @@ public final class AppRoutes {
                 String orderId = req.query().getOrDefault("orderId", "");
                 if (orderId.isEmpty()) {
                     return err(400, "invalid_request", "orderId manquant");
+                }
+                if (!ID.matcher(orderId).matches()) {
+                    return err(404, "order_not_found", "Commande introuvable");
                 }
                 AppOrder order = resolveOrder.apply(orderId, user);
                 if (order == null) {
@@ -231,6 +266,9 @@ public final class AppRoutes {
                 if (orderId.isEmpty()) {
                     return err(400, "invalid_request", "orderId manquant");
                 }
+                if (!ID.matcher(orderId).matches()) {
+                    return err(404, "order_not_found", "Commande introuvable");
+                }
                 JsonNode mNode = b.get("method");
                 String payMethod = mNode == null || mNode.isNull() ? "mobile_money" : mNode.isTextual() ? mNode.asText() : "?";
                 if (!"mobile_money".equals(payMethod) && !"card".equals(payMethod)) {
@@ -250,6 +288,9 @@ public final class AppRoutes {
             }
             // GET /payments/{id} : seulement si la commande de ce paiement est à cet utilisateur.
             String id = URLDecoder.decode(pm.group(1), StandardCharsets.UTF_8);
+            if (!ID.matcher(id).matches()) {
+                return err(404, "payment_not_found", "Paiement introuvable");
+            }
             Payment payment;
             try {
                 payment = pay.getPayment(id);
@@ -259,7 +300,8 @@ public final class AppRoutes {
                 }
                 throw e;
             }
-            if (resolveOrder.apply(orderIdOf(payment.reference()), user) == null) {
+            String orderId = orderIdOf(payment);
+            if (orderId == null || resolveOrder.apply(orderId, user) == null) {
                 return err(404, "payment_not_found", "Paiement introuvable");
             }
             return new AppResponse(200, Map.of("payment", payment.toAppJson()));

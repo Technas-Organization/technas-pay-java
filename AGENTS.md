@@ -132,6 +132,7 @@ Ne réécrivez pas de routes : `pay.appRoutes(authorize, resolveOrder).returnUrl
 
 - **Ils peuvent arriver plusieurs fois** : vos fonctions doivent le supporter. Vérifiez l'état en base, ou gardez `event.id()`.
 - **Ne rattrapez pas leurs erreurs pour répondre 200.** Une erreur doit remonter pour que le webhook soit relivré.
+- **Deux paiements pour une commande** : une cliente peut payer par mobile money puis par carte (deux séries de références). Dans `onCompleted`, si la commande est déjà payée par un AUTRE `payment.id()`, ne l'ignorez pas : signalez-la au marchand pour remboursement.
 - **`onFailed` n'est pas définitif** : `onCompleted` peut arriver après.
 - **`onExpired` est définitif** : seul moment où relancer le client (nouvelle référence).
 - **`onRefund`** : prévenez le client, par e-mail ou SMS. Technas ne lui écrit pas.

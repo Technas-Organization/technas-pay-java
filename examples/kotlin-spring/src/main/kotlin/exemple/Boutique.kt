@@ -11,6 +11,7 @@ import fr.technas.pay.webhook.WebhookHandlers
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import java.net.URI
+import java.security.Principal
 import java.util.concurrent.ConcurrentHashMap
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -38,8 +39,9 @@ class Paiement {
     private val pay = TechnasPay.fromEnv() // lit TECHNAS_PAY_SECRET au premier appel
 
     @PostMapping("/commandes/{id}/payer")
-    fun payer(@PathVariable id: String): ResponseEntity<Void> {
-        val o = orders.getValue(id) // relue EN BASE
+    fun payer(@PathVariable id: String, user: Principal?): ResponseEntity<Void> {
+        val o = orders[id]?.takeIf { it.owner == user?.name } // relue EN BASE, jamais celle d'un autre
+            ?: return ResponseEntity.notFound().build()
         val p = pay.askForPayment(
             PaymentRequest.builder()
                 .amount(o.total)

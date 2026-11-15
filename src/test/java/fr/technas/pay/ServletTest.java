@@ -119,4 +119,15 @@ class ServletTest {
         org.junit.jupiter.api.Assertions.assertFalse(json.matches("(?s).*[<>&'].*"), json);
         assertEquals("<script>alert('x')</script> & co", Json.parse(json).get("m").asText());
     }
+
+    @Test
+    void horsDuPrefixeRienNEstRoute() throws IOException {
+        TechnasPay pay = TechnasPay.builder().secret(AppContractTest.SECRET).baseUrl("https://gw.test").transport(new FakeTransport()).build();
+        AppRoutes routes = pay.<String>appRoutes(r -> "u1", (id, u) -> null).build();
+        for (String uri : new String[] {"/api/technas-payX/methods", "/autre/methods"}) {
+            Res res = response();
+            TechnasPayServlet.handle(routes, request("GET", uri, Map.of("orderId", "42"), Map.of(), new byte[0]), res.res(), "/api/technas-pay");
+            assertEquals(404, res.status().get(), uri);
+        }
+    }
 }

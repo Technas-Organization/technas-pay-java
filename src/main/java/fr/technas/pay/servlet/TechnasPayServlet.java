@@ -39,7 +39,16 @@ public final class TechnasPayServlet {
     public static void handle(AppRoutes routes, HttpServletRequest req, HttpServletResponse res, String basePath) throws IOException {
         String prefix = "/" + basePath.replaceAll("^/+|/+$", "");
         String uri = req.getRequestURI().substring(req.getContextPath().length());
-        String path = uri.startsWith(prefix) ? uri.substring(prefix.length()) : uri;
+        if (!uri.equals(prefix) && !uri.startsWith(prefix + "/")) {
+            // Hors du préfixe (ou « /api/technas-payX ») : rien n'est routé.
+            res.setStatus(404);
+            res.setContentType("application/json");
+            res.setCharacterEncoding("UTF-8");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            res.getWriter().write(new AppResponse(404, Map.of("code", "not_found", "message", "Route inconnue", "retryable", false)).json());
+            return;
+        }
+        String path = uri.substring(prefix.length());
 
         byte[] raw;
         try (InputStream in = req.getInputStream()) {

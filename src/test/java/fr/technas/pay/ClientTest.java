@@ -144,14 +144,16 @@ class ClientTest {
     @Test
     void identifiantEchappeEtSimulation() {
         FakeTransport t = new FakeTransport()
-                .reply(404, Map.of("code", "payment_not_found", "message", "m"))
                 .reply(303, Map.of())
                 .reply(200, payment(Map.of("status", "completed")));
         TechnasPay pay = pay(t);
-        assertThrows(TechnasPayException.class, () -> pay.getPayment("../balance"));
-        assertEquals("https://gw.test/v1/payments/..%2Fbalance", t.calls.get(0).url());
+        // Revue de sécurité F1 : « .. », « / », « %2F », « . » ne partent jamais dans un chemin.
+        for (String bad : new String[] {"../balance", "..", ".", "a/b", "a%2Fb", "", "pay 1"}) {
+            assertEquals("invalid_request", assertThrows(TechnasPayException.class, () -> pay.getPayment(bad)).code());
+        }
+        assertTrue(t.calls.isEmpty());
         assertEquals("completed", pay.simulateTestPayment("pay_1", "completed").status());
-        assertFalse(t.calls.get(1).headers().containsKey("Authorization"), "la page de test ne reçoit pas la clé");
+        assertFalse(t.calls.get(0).headers().containsKey("Authorization"), "la page de test ne reçoit pas la clé");
         TechnasPayException live = assertThrows(TechnasPayException.class,
                 () -> pay(new FakeTransport(), SECRET.replace("tps_test_", "tps_live_")).simulateTestPayment("p", "completed"));
         assertTrue(live.getMessage().contains("tps_test_"));
