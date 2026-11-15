@@ -1,5 +1,9 @@
 # Journal
 
+## 0.3.0 (15/11/2026)
+
+Le client change d'offre ou revient plus tard : les routes toutes faites passent à l'essai suivant sur `reference_conflict` (comme sur `payment_expired`) ; contrat v1 à 24 cas ; section dédiée dans README et AGENTS.md ; test de scénario.
+
 ## 0.2.1 (15/11/2026)
 
 Avis `account.kyc_required` complet : `stage()`, `blockReason()`, `daysElapsed()`, `graceDays()`, `firstCollectedAt()` (nuls dans un avis plus ancien).
