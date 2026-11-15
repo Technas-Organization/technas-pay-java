@@ -1,0 +1,112 @@
+package fr.technas.pay.model;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Une demande de paiement.
+ *
+ * <pre>{@code
+ * PaymentRequest.builder()
+ *     .amount(5000)                                        // entier : 5 000 FCFA, jamais × 100
+ *     .reference(Status.retryReference(orderId, attempt))  // une référence = un essai
+ *     .customer(Customer.of(email, name))
+ *     .returnUrl("https://votre-site.com/merci")
+ *     .build();
+ * }</pre>
+ *
+ * Par carte : {@code .method("card").currency("EUR")}, décimales permises.
+ */
+public record PaymentRequest(BigDecimal amount, String reference, Customer customer, String returnUrl, String method,
+                             String currency, String description, Map<String, Object> metadata,
+                             List<String> allowedCountries, List<String> excludedCountries, boolean askCountry) {
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private BigDecimal amount;
+        private String reference;
+        private Customer customer;
+        private String returnUrl;
+        private String method = "mobile_money";
+        private String currency;
+        private String description;
+        private Map<String, Object> metadata = Map.of();
+        private List<String> allowedCountries;
+        private List<String> excludedCountries;
+        private boolean askCountry;
+
+        private Builder() {
+        }
+
+        public Builder amount(long v) {
+            amount = BigDecimal.valueOf(v);
+            return this;
+        }
+
+        public Builder amount(BigDecimal v) {
+            amount = v;
+            return this;
+        }
+
+        public Builder reference(String v) {
+            reference = v;
+            return this;
+        }
+
+        public Builder customer(Customer v) {
+            customer = v;
+            return this;
+        }
+
+        public Builder returnUrl(String v) {
+            returnUrl = v;
+            return this;
+        }
+
+        /** {@code mobile_money} (défaut) ou {@code card} (exige {@code currency} et un compte carte actif). */
+        public Builder method(String v) {
+            method = v;
+            return this;
+        }
+
+        /** Ne la passez pas en zone franc CFA : elle suit le pays du client. Obligatoire par carte. */
+        public Builder currency(String v) {
+            currency = v;
+            return this;
+        }
+
+        public Builder description(String v) {
+            description = v;
+            return this;
+        }
+
+        public Builder metadata(Map<String, Object> v) {
+            metadata = v == null ? Map.of() : Map.copyOf(v);
+            return this;
+        }
+
+        public Builder allowedCountries(List<String> v) {
+            allowedCountries = v == null ? null : List.copyOf(v);
+            return this;
+        }
+
+        public Builder excludedCountries(List<String> v) {
+            excludedCountries = v == null ? null : List.copyOf(v);
+            return this;
+        }
+
+        public Builder askCountry(boolean v) {
+            askCountry = v;
+            return this;
+        }
+
+        public PaymentRequest build() {
+            return new PaymentRequest(amount, reference, customer, returnUrl, method, currency, description, metadata,
+                    allowedCountries, excludedCountries, askCountry);
+        }
+    }
+}
