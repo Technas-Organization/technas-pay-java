@@ -9,6 +9,7 @@ import fr.technas.pay.app.AppRoutes;
 import fr.technas.pay.http.JdkTransport;
 import fr.technas.pay.http.Transport;
 import fr.technas.pay.internal.Json;
+import fr.technas.pay.model.AccountKyc;
 import fr.technas.pay.model.CardAccount;
 import fr.technas.pay.model.CardOnboardingLink;
 import fr.technas.pay.model.Customer;
@@ -49,7 +50,7 @@ import java.util.regex.Pattern;
  * }</pre>
  */
 public final class TechnasPay {
-    public static final String VERSION = "0.1.1";
+    public static final String VERSION = "0.2.0";
     public static final String DEFAULT_BASE_URL = "https://pay-api.technas.fr";
     public static final String SECRET_ENV = "TECHNAS_PAY_SECRET";
     private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([\\x21-\\x2d\\x2f-\\x7e]+)\\.([\\x21-\\x2d\\x2f-\\x7e]+)$"); // ASCII imprimable sans « . »
@@ -152,7 +153,7 @@ public final class TechnasPay {
                 details.put(k[1], n);
             }
         }
-        for (String[] k : new String[][] {{"currency", "currency"}, {"reason", "reason"}, {"risk", "risk"}, {"account_status", "accountStatus"}}) {
+        for (String[] k : new String[][] {{"currency", "currency"}, {"reason", "reason"}, {"risk", "risk"}, {"account_status", "accountStatus"}, {"console_url", "consoleUrl"}, {"version", "version"}}) {
             String v = Json.nstr(d, k[0]);
             if (v != null) {
                 details.put(k[1], v);
@@ -440,6 +441,16 @@ public final class TechnasPay {
     /** Le tableau de bord du compte carte : le responsable s'y connecte avec SES identifiants. */
     public String getCardDashboardLink() {
         return Json.str(call("POST", "/v1/card/dashboard-link", Json.object()), "url");
+    }
+
+    // --- Seuil d'identité ----------------------------------------------------------------------
+
+    /**
+     * Où en est le seuil d'identité du compte : encaissé, seuil, échéance, et la console où
+     * déposer la pièce. Le même état que la console et que l'avis {@code account.kyc_required}.
+     */
+    public AccountKyc getAccountKyc() {
+        return AccountKyc.fromJson(call("GET", "/v1/account/kyc", null));
     }
 
     // --- Avis signés ---------------------------------------------------------------------------

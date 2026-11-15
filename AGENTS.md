@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.1.1</version>
+  <version>v0.2.0</version>
 </dependency>
 ```
 
@@ -41,6 +41,7 @@ Dépendance JitPack (voir le README) :
 | Numéro de reversement (administrateur) | `pay.getPayoutNetworks("TG")`, `pay.setPayoutDestination("TG", "moov_tg", "+228…", "Nom")` |
 | Payer par carte | `.method("card").amount(new BigDecimal("12.50")).currency("EUR")` après `pay.getCardAccount().canAcceptPayments()` |
 | Ouvrir le compte carte | `pay.startCardOnboarding(returnUrl, refreshUrl, "TG", null, null)`, rediriger le RESPONSABLE vers `url()` |
+| Seuil d'identité (marchand) | `pay.getAccountKyc()` : `stage()`, `collectedXof()`, `thresholdXof()`, `deadline()`, `consoleUrl()` ; avis `onKycRequired` (`event.kyc()`) |
 | Tableau de bord carte | `pay.getCardDashboardLink()` (le responsable s'y connecte avec ses identifiants) |
 | Tester la route d'avis | `pay.createTestWebhook("payment.completed", "42-1", BigDecimal.valueOf(5000), "XOF")` (corps et en-tête) |
 | Jouer le payeur en test | `pay.simulateTestPayment(id, "completed" \| "failed" \| "expired")` |
@@ -179,6 +180,15 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
   - N'appelez jamais `refund` pour un remboursement déjà fait à la main : le client serait remboursé deux fois.
 - **Total remboursé** : `payment.refundedAmount()` additionne les deux sortes.
 
+## Seuil d'identité
+
+- **La règle** : en réel, un compte sans pièce d'identité vérifiée voit ses NOUVEAUX paiements mobile money refusés (`kyc_required`, 409) au-delà d'un montant encaissé en cumul ou d'un nombre de jours après son premier paiement réel encaissé (aujourd'hui 1 000 000 F CFA ou 30 jours).
+- **Les chiffres viennent de l'API** : `pay.getAccountKyc()` (`thresholdXof()`, `graceDays()`, `collectedXof()`, `deadline()`). Ne les écrivez jamais en dur.
+- **Rien de ce qui existe n'est bloqué** : paiement en cours, remboursement, reversement, lecture. La carte n'est pas concernée.
+- **Montrez l'état au MARCHAND** (réglages, tableau de bord), jamais au client final. `stage()` vaut `ok`, `soon` (préavis), `blocked`, `verified` ou `not_applicable`.
+- **Branchez `onKycRequired`** : l'avis `account.kyc_required` arrive à 80 % du seuil (`reason` `amount_80`), 7 jours avant l'échéance (`deadline_7d`), puis au premier refus (`blocked`). Prévenez le responsable avec le lien `event.kyc().consoleUrl()`, où il dépose sa pièce.
+- **Sur `kyc_required`** : proposez la carte, ou dites au client que le paiement mobile money n'est pas disponible pour le moment. Ne réessayez pas.
+
 ## Erreurs
 
 - `card_account_not_ready` (409) : paiement par carte demandé sans compte carte actif. Voir « Paiement par carte ».
@@ -201,6 +211,8 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
 | `fx_mode_unavailable`, `fx_channel_unavailable` | Mode `converted` pas ouvert : proposer `local` (avec l'accord de l'utilisateur sur le risque) ou rester en `none` |
 | `quote_expired` | Le client rechoisit son pays sur la page, rien à faire côté code |
 | `reference_conflict` | Même référence, autres valeurs : ne pas réutiliser la référence |
+| `kyc_required` | Pièce d'identité à déposer : `e.details().get("consoleUrl")`, `reason` (`amount` ou `duration`). Proposer la carte ; ne pas réessayer |
+| `contract_required` | Le responsable doit accepter le contrat dans la console (`e.details().get("version")`) ; ne pas réessayer |
 | `payment_in_progress` | Réessayer dans une minute, même appel |
 | `payment_not_found`, `refund_not_found` | Mauvais identifiant ou autre compte |
 | `payment_expired` | Cette référence est un essai expiré : nouveau paiement avec une NOUVELLE référence, jamais le même appel |

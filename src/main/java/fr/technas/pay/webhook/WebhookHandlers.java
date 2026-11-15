@@ -23,6 +23,7 @@ public final class WebhookHandlers {
     private final Consumer<Event> onBalanceConverted;
     private final Consumer<Event> onFxModeUpdated;
     private final Consumer<Event> onCardAccountUpdated;
+    private final Consumer<Event> onKycRequired;
 
     private WebhookHandlers(Builder b) {
         onCompleted = b.onCompleted;
@@ -34,6 +35,7 @@ public final class WebhookHandlers {
         onBalanceConverted = b.onBalanceConverted;
         onFxModeUpdated = b.onFxModeUpdated;
         onCardAccountUpdated = b.onCardAccountUpdated;
+        onKycRequired = b.onKycRequired;
     }
 
     public static Builder builder() {
@@ -69,6 +71,9 @@ public final class WebhookHandlers {
         if ("card_account.updated".equals(type)) {
             return onCardAccountUpdated;
         }
+        if ("account.kyc_required".equals(type)) {
+            return onKycRequired;
+        }
         return null;
     }
 
@@ -82,6 +87,7 @@ public final class WebhookHandlers {
         private Consumer<Event> onBalanceConverted;
         private Consumer<Event> onFxModeUpdated;
         private Consumer<Event> onCardAccountUpdated;
+        private Consumer<Event> onKycRequired;
 
         private Builder() {
         }
@@ -133,6 +139,12 @@ public final class WebhookHandlers {
 
         public Builder onCardAccountUpdated(Consumer<Event> f) {
             onCardAccountUpdated = f;
+            return this;
+        }
+
+        /** Seuil d'identité ({@code event.kyc()}) : prévenez le responsable, lien {@code consoleUrl()}. */
+        public Builder onKycRequired(Consumer<Event> f) {
+            onKycRequired = f;
             return this;
         }
 
