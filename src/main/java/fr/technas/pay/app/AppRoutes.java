@@ -136,7 +136,9 @@ public final class AppRoutes {
             try {
                 return pay.askForPayment(r.build());
             } catch (TechnasPayException e) {
-                if ("payment_expired".equals(e.code()) && attempt < maxAttempts) {
+                // Essai expiré, ou référence d'un autre montant (le client a changé d'offre) : essai
+                // suivant. Un essai non payé ne bloque jamais un nouvel essai.
+                if (("payment_expired".equals(e.code()) || "reference_conflict".equals(e.code())) && attempt < maxAttempts) {
                     continue;
                 }
                 throw e;

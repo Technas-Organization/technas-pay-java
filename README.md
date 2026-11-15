@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.2.1</version>
+  <version>v0.3.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.2.1") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.3.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -168,6 +168,52 @@ En réel, un compte sans pièce d'identité vérifiée voit ses NOUVEAUX paiemen
 ## La règle de relance
 
 **Une référence = un essai.** `failed` n'est pas définitif : le client peut encore payer sur la même page pendant une heure. Ne relancez qu'après `payment.expired`, avec une nouvelle référence.
+
+### Le client change d'offre ou revient plus tard
+
+Le client choisit une offre, ouvre la page de paiement, ne paie pas, puis revient choisir une AUTRE offre, ou revient le lendemain. Rien n'est payé : ne répondez jamais « un paiement existe déjà ».
+
+- **Une référence = un essai.** Nouvelle offre, ou retour après expiration : un NOUVEL essai, `Status.retryReference(factureId, n + 1)`, `n` gardé en base. Réutiliser la référence d'un autre montant lève `reference_conflict` (409) ; celle d'un essai expiré, `payment_expired` (409). Les routes toutes faites (`appRoutes`) le font seules.
+- **Une facture n'est payée QUE sur `payment.completed`** (`onCompleted`). Jamais sur `returnUrl`, jamais à l'ouverture de la page.
+- **Un essai non payé ne bloque jamais un nouvel essai.** Même offre et essai `pending` ou `failed` : renvoyez le client sur la même page (`checkoutUrl()`). Autre offre : créez le nouvel essai, ne refusez pas. `expired` : marquez la tentative expirée et laissez recommencer.
+- **Au retour du client**, vérifiez `pay.getPayment(dernierPaymentId)` avant de dire quoi que ce soit : votre base peut avoir manqué un avis.
+- **Un ancien essai payé APRÈS le nouveau** (le client a payé les deux pages) : n'activez rien deux fois, remboursez l'essai en trop avec `pay.refund(paymentId)`.
+
+```java
+Payment payer(Facture f, long montant) {
+    if (f.dernierPaymentId() != null) {
+        Payment dernier = pay.getPayment(f.dernierPaymentId()); // jamais la base seule
+        if ("completed".equals(dernier.status())) {
+            throw new DejaPayee(f.id());
+        }
+        boolean memeOffre = dernier.amount().compareTo(BigDecimal.valueOf(montant)) == 0;
+        if (memeOffre && !"expired".equals(dernier.status()) && dernier.checkoutUrl() != null) {
+            return dernier; // pending ou failed : même page, le client peut encore payer
+        }
+    }
+    int essai = factures.essaiSuivant(f.id()); // n + 1, gardé en base
+    Payment p = pay.askForPayment(PaymentRequest.builder()
+            .amount(montant)
+            .reference(Status.retryReference(f.id(), essai))
+            .customer(Customer.of(f.email(), f.nom()))
+            .returnUrl("https://votre-site.com/merci")
+            .metadata(Map.of("facture_id", f.id()))
+            .build());
+    factures.retenirPaiement(f.id(), p.id());
+    return p;
+}
+
+// Dans onCompleted : la facture déjà payée par un AUTRE paiement → rembourser celui-ci.
+.onCompleted(e -> {
+    String id = e.payment().metadata().get("facture_id").toString();
+    if (factures.estPayeePar(id, e.payment().id()) || !factures.estPayee(id)) {
+        factures.marquerPayee(id, e.payment().id()); // idempotent
+    } else {
+        pay.refund(e.payment().id()); // second paiement : rien n'est activé deux fois
+    }
+})
+```
+
 
 ## Développer
 
