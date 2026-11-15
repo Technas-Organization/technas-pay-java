@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.2.0</version>
+  <version>v0.2.1</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.2.0") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.2.1") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -163,7 +163,7 @@ Codes et conduite à tenir : [AGENTS.md](AGENTS.md#erreurs).
 
 ## Seuil d'identité
 
-En réel, un compte sans pièce d'identité vérifiée voit ses NOUVEAUX paiements mobile money refusés (`kyc_required`) au-delà d'un montant encaissé ou d'un nombre de jours après son premier paiement réel (aujourd'hui 1 000 000 F CFA ou 30 jours : lisez-les dans `getAccountKyc()`, ne les écrivez pas en dur). Rien de ce qui existe n'est bloqué, et la carte n'est pas concernée. `getAccountKyc()` donne l'état à montrer au marchand ; l'avis `account.kyc_required` (`onKycRequired`, contenu `event.kyc()`) arrive à 80 % du seuil, 7 jours avant l'échéance, puis au premier refus. Le responsable dépose sa pièce dans la console (`consoleUrl()`).
+En réel, un compte sans pièce d'identité vérifiée voit ses NOUVEAUX paiements mobile money refusés (`kyc_required`) au-delà d'un montant encaissé ou d'un nombre de jours après son premier paiement réel (aujourd'hui 1 000 000 F CFA ou 30 jours : lisez-les dans `getAccountKyc()`, ne les écrivez pas en dur). Rien de ce qui existe n'est bloqué, et la carte n'est pas concernée. `getAccountKyc()` donne l'état à montrer au marchand ; l'avis `account.kyc_required` (`onKycRequired`, contenu `event.kyc()` : `reason()` est son déclencheur, `stage()` et `blockReason()` l'état, comme `getAccountKyc()`) arrive à 80 % du seuil, 7 jours avant l'échéance, puis au premier refus. Le responsable dépose sa pièce dans la console (`consoleUrl()`).
 
 ## La règle de relance
 

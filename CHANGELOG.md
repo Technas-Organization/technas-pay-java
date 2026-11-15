@@ -1,5 +1,9 @@
 # Journal
 
+## 0.2.1 (15/11/2026)
+
+Avis `account.kyc_required` complet : `stage()`, `blockReason()`, `daysElapsed()`, `graceDays()`, `firstCollectedAt()` (nuls dans un avis plus ancien).
+
 ## 0.2.0 (15/11/2026)
 
 Seuil d'identité : `getAccountKyc()` (`GET /v1/account/kyc`), avis `account.kyc_required` (`onKycRequired`, `event.kyc()`), précisions `consoleUrl` (`kyc_required`) et `version` (`contract_required`) dans `details()`.

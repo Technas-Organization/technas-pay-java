@@ -90,6 +90,28 @@ class SeuilKycTest {
         assertEquals("https://c", seen.get(0).consoleUrl());
         assertFalse(seen.get(0).blocked());
         assertNull(r.event().payment());
+        assertNull(seen.get(0).stage(), "avis ancien : champs complémentaires nuls");
+        assertNull(seen.get(0).daysElapsed());
+    }
+
+    @Test
+    void avisCompletLuEnEntier() {
+        TechnasPay pay = pay(new FakeTransport());
+        List<KycNotice> seen = new ArrayList<>();
+        String body = "{\"id\":\"e2\",\"type\":\"account.kyc_required\",\"created_at\":\"x\",\"data\":{\"reason\":\"blocked\","
+                + "\"collected_xof\":1000000,\"threshold_xof\":1000000,\"deadline\":null,\"blocked\":true,\"console_url\":\"https://c\","
+                + "\"stage\":\"blocked\",\"block_reason\":\"amount\",\"days_elapsed\":12,\"grace_days\":30,"
+                + "\"first_collected_at\":\"2026-11-03T10:00:00+00:00\"}}";
+        pay.handleWebhook(body, Signature.sign(body, ClientTest.WEBHOOK_SECRET), WebhookHandlers.builder().onKycRequired(e -> seen.add(e.kyc())).build());
+        KycNotice k = seen.get(0);
+        assertEquals("blocked", k.reason());
+        assertEquals("blocked", k.stage());
+        assertEquals("amount", k.blockReason());
+        assertEquals(12, k.daysElapsed());
+        assertEquals(30, k.graceDays());
+        assertEquals("2026-11-03T10:00:00+00:00", k.firstCollectedAt());
+        assertTrue(k.blocked());
+        assertNull(k.deadline());
     }
 
     @Test
