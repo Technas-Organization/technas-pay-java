@@ -3,6 +3,7 @@ package fr.technas.pay.webhook;
 import com.fasterxml.jackson.databind.JsonNode;
 import fr.technas.pay.internal.Json;
 import fr.technas.pay.model.CardAccount;
+import fr.technas.pay.model.KycNotice;
 import fr.technas.pay.model.Payment;
 import fr.technas.pay.model.Refund;
 import java.util.Map;
@@ -13,7 +14,7 @@ import java.util.Map;
  * doublon.
  */
 public record Event(String id, String type, String createdAt, Map<String, Object> data,
-                    Payment payment, Refund refund, CardAccount cardAccount) {
+                    Payment payment, Refund refund, CardAccount cardAccount, KycNotice kyc) {
 
     static Event parse(JsonNode raw) {
         if (raw == null || !raw.isObject() || Json.nstr(raw, "id") == null || Json.nstr(raw, "type") == null
@@ -25,6 +26,7 @@ public record Event(String id, String type, String createdAt, Map<String, Object
         Payment payment = null;
         Refund refund = null;
         CardAccount card = null;
+        KycNotice kyc = null;
         switch (type) {
             case "payment.completed", "payment.failed", "payment.expired" -> {
                 if (Json.nstr(d, "id") == null) {
@@ -34,10 +36,11 @@ public record Event(String id, String type, String createdAt, Map<String, Object
             }
             case "refund.completed", "refund.failed", "refund.recorded" -> refund = Refund.fromJson(d);
             case "card_account.updated" -> card = CardAccount.fromJson(d);
+            case "account.kyc_required" -> kyc = KycNotice.fromJson(d);
             default -> {
                 // payout_destination.*, balance.*, fx_mode.updated, types inconnus : `data`.
             }
         }
-        return new Event(Json.str(raw, "id"), type, Json.nstr(raw, "created_at"), Json.map(raw, "data"), payment, refund, card);
+        return new Event(Json.str(raw, "id"), type, Json.nstr(raw, "created_at"), Json.map(raw, "data"), payment, refund, card, kyc);
     }
 }

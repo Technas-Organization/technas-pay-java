@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.1.1</version>
+  <version>v0.2.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.1.1") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.2.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -83,7 +83,7 @@ ResponseEntity<Map<String, Object>> webhook(@RequestBody String raw,          //
 }
 ```
 
-Fonctions disponibles : `onCompleted`, `onFailed` (pas définitif), `onExpired` (définitif), `onRefund`, `onTopUp`, `onPayoutDestination`, `onBalanceConverted`, `onFxModeUpdated`, `onCardAccountUpdated`. Une exception dans votre fonction doit remonter : Technas relivrera.
+Fonctions disponibles : `onCompleted`, `onFailed` (pas définitif), `onExpired` (définitif), `onRefund`, `onTopUp`, `onPayoutDestination`, `onBalanceConverted`, `onFxModeUpdated`, `onCardAccountUpdated`, `onKycRequired`. Une exception dans votre fonction doit remonter : Technas relivrera.
 
 Kotlin :
 
@@ -141,6 +141,7 @@ Exemples complets, compilés en CI : [`examples/spring-boot`](examples/spring-bo
 | `setCountryRules(allowed, excluded)` | Où vous vendez |
 | `getPayoutNetworks(country)`, `getPayoutDestination()`, `setPayoutDestination(...)` | Numéro de reversement |
 | `startCardOnboarding(...)`, `getCardAccount()`, `getCardDashboardLink()` | Compte carte et son tableau de bord |
+| `getAccountKyc()` | Seuil d'identité : encaissé, seuil, échéance, lien de la console |
 | `verifyWebhook(raw, sig)`, `handleWebhook(...)`, `createTestWebhook(...)` | Avis signés |
 | `simulateTestPayment(id, "completed" \| "failed" \| "expired")` | Jouer le payeur en test |
 
@@ -159,6 +160,10 @@ try {
 ```
 
 Codes et conduite à tenir : [AGENTS.md](AGENTS.md#erreurs).
+
+## Seuil d'identité
+
+En réel, un compte sans pièce d'identité vérifiée voit ses NOUVEAUX paiements mobile money refusés (`kyc_required`) au-delà d'un montant encaissé ou d'un nombre de jours après son premier paiement réel (aujourd'hui 1 000 000 F CFA ou 30 jours : lisez-les dans `getAccountKyc()`, ne les écrivez pas en dur). Rien de ce qui existe n'est bloqué, et la carte n'est pas concernée. `getAccountKyc()` donne l'état à montrer au marchand ; l'avis `account.kyc_required` (`onKycRequired`, contenu `event.kyc()`) arrive à 80 % du seuil, 7 jours avant l'échéance, puis au premier refus. Le responsable dépose sa pièce dans la console (`consoleUrl()`).
 
 ## La règle de relance
 
