@@ -23,7 +23,7 @@
     <dependency>
       <groupId>fr.technas</groupId>
       <artifactId>technas-pay</artifactId>
-      <version>0.1.0</version>
+      <version>0.1.1</version>
     </dependency>
   </dependencies>
 </project>
