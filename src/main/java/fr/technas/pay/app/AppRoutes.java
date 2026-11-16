@@ -169,7 +169,15 @@ public final class AppRoutes {
             throw new TechnasPayException("payment_already_completed", "L'essai précédent de cette commande est déjà payé", 409, Map.of());
         }
         if (!"expired".equals(previous.status())) {
-            pay.cancelPayment(previous.id());
+            try {
+                pay.cancelPayment(previous.id());
+            } catch (TechnasPayException e) {
+                // 404 : paiement disparu, ou serveur plus ancien sans route d'annulation : on continue
+                // comme avant (essai suivant). Tout autre refus remonte : aucun second paiement.
+                if (e.status() != 404) {
+                    throw e;
+                }
+            }
         }
     }
 
