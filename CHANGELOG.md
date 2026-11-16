@@ -1,5 +1,9 @@
 # Journal
 
+## 0.4.0 (16/11/2026)
+
+`cancelPayment(id)` (`POST /v1/payments/{id}/cancel`) : annule un paiement que personne n'a commencé à payer. `Payment` : `canceledAt()`, `cancelReason()`, `reason()` (avis `payment.expired` : `canceled` ou `timeout`). Routes toutes faites : `POST /payments/{id}/cancel`, et sur `reference_conflict` l'ancien essai est relu puis annulé avant le suivant (aucun second paiement si l'annulation répond `payment_in_progress` ou `payment_already_completed`). Contrat v1 à 30 cas.
+
 ## 0.3.0 (15/11/2026)
 
 Le client change d'offre ou revient plus tard : les routes toutes faites passent à l'essai suivant sur `reference_conflict` (comme sur `payment_expired`) ; contrat v1 à 24 cas ; section dédiée dans README et AGENTS.md ; test de scénario.

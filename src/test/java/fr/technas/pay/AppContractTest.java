@@ -103,10 +103,20 @@ class AppContractTest {
                     assertEquals(e.get("path").asText(), URI.create(gw.calls.get(i).url()).getRawPath());
                     JsonNode sent = gw.calls.get(i).json();
                     e.path("body_includes").properties().forEach(kv -> assertJsonEquals(kv.getValue(), sent.path(kv.getKey())));
+                    String rawQuery = URI.create(gw.calls.get(i).url()).getRawQuery();
+                    Map<String, String> q = new HashMap<>();
+                    if (rawQuery != null) {
+                        for (String part : rawQuery.split("&")) {
+                            String[] kv2 = part.split("=", 2);
+                            q.put(java.net.URLDecoder.decode(kv2[0], StandardCharsets.UTF_8),
+                                    kv2.length > 1 ? java.net.URLDecoder.decode(kv2[1], StandardCharsets.UTF_8) : "");
+                        }
+                    }
+                    e.path("query_includes").properties().forEach(kv -> assertEquals(kv.getValue().asText(), q.get(kv.getKey()), kv.getKey()));
                 }
             }));
         }
-        assertEquals(24, tests.size(), "le contrat v1 a 24 cas");
+        assertEquals(30, tests.size(), "le contrat v1 a 30 cas");
         return tests.stream();
     }
 

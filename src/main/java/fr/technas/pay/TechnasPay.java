@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
  * }</pre>
  */
 public final class TechnasPay {
-    public static final String VERSION = "0.3.0";
+    public static final String VERSION = "0.4.0";
     public static final String DEFAULT_BASE_URL = "https://pay-api.technas.fr";
     public static final String SECRET_ENV = "TECHNAS_PAY_SECRET";
     private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([\\x21-\\x2d\\x2f-\\x7e]+)\\.([\\x21-\\x2d\\x2f-\\x7e]+)$"); // ASCII imprimable sans « . »
@@ -246,6 +246,17 @@ public final class TechnasPay {
 
     public Payment getPayment(String id) {
         return Payment.fromJson(call("GET", "/v1/payments/" + seg(id), null));
+    }
+
+    /**
+     * Annule DÉFINITIVEMENT un paiement que personne n'a commencé à payer (le client change d'offre) :
+     * rien ne peut plus aboutir dessus. Rend le paiement, {@code expired}, sans lien. Rejouer rend le
+     * même résultat. Refus : {@code payment_already_completed} (payé : relisez-le),
+     * {@code payment_in_progress} (une demande est en cours chez l'opérateur : ne créez PAS de second
+     * paiement, attendez l'avis). Puis créez le nouvel essai avec une NOUVELLE référence.
+     */
+    public Payment cancelPayment(String id) {
+        return Payment.fromJson(call("POST", "/v1/payments/" + seg(id) + "/cancel", Json.object()));
     }
 
     /** Pour rattraper un avis manqué. */

@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.3.0</version>
+  <version>v0.4.0</version>
 </dependency>
 ```
 
@@ -31,7 +31,7 @@ Dépendance JitPack (voir le README) :
 | Faire payer une commande | `pay.askForPayment(PaymentRequest.builder().amount(5000).reference(Status.retryReference(orderId, attempt)).customer(Customer.of(email, name)).returnUrl(…).build())`, puis rediriger (303) vers `payment.checkoutUrl()` |
 | Savoir qu'elle est payée | avis signé : `pay.handleWebhook(corpsBrut, signature, WebhookHandlers.builder().onCompleted(…).build())` |
 | Rattraper un avis manqué | `pay.getPaymentByReference(reference)` |
-| Le client change d'offre ou revient plus tard | nouvel essai `Status.retryReference(factureId, n + 1)` ; au retour, `pay.getPayment(dernierPaymentId)` d'abord (voir la section dédiée) |
+| Le client change d'offre ou revient plus tard | `pay.cancelPayment(ancienId)`, puis nouvel essai `Status.retryReference(factureId, n + 1)` ; au retour, `pay.getPayment(dernierPaymentId)` d'abord (voir la section dédiée) |
 | Savoir si on peut relancer | `onExpired`, ou `Status.canRetry(pay.getPayment(id).status())` |
 | Rembourser | `pay.refund(paymentId)` ou `pay.refund(paymentId, amount, fees, reference)` |
 | Noter un remboursement fait hors Technas | `pay.recordExternalRefund(paymentId, 2000, "Flooz", null, null, null)` |
@@ -56,7 +56,7 @@ Dépendance JitPack (voir le README) :
 
 ## App mobile (Flutter)
 
-Ne réécrivez pas de routes : `pay.appRoutes(authorize, resolveOrder).returnUrl(…).webhooks(…).card(?).authorizeAdmin(?).build()`, montées sous `/api/technas-pay` par `TechnasPayServlet.handle(routes, req, res, "/api/technas-pay")` (Spring MVC, Quarkus, Tomcat, Jetty). Hors Servlet : `routes.handle(new AppRequest(…))`. `resolveOrder(orderId, user)` relit la commande EN BASE et rend `null` si elle n'est pas à cet utilisateur. N'y mettez jamais un montant reçu de l'app. Côté app : `TechnasPayClient(baseUrl: '…/api/technas-pay')`.
+Ne réécrivez pas de routes : `pay.appRoutes(authorize, resolveOrder).returnUrl(…).webhooks(…).card(?).authorizeAdmin(?).build()`, montées sous `/api/technas-pay` par `TechnasPayServlet.handle(routes, req, res, "/api/technas-pay")` (Spring MVC, Quarkus, Tomcat, Jetty). Hors Servlet : `routes.handle(new AppRequest(…))`. `resolveOrder(orderId, user)` relit la commande EN BASE et rend `null` si elle n'est pas à cet utilisateur. N'y mettez jamais un montant reçu de l'app. Le client change d'offre : l'app appelle `POST /payments/{id}/cancel` sur l'essai affiché, puis `POST /payments` ; si la commande a changé de montant, `POST /payments` annule lui-même l'ancien essai encore ouvert. Côté app : `TechnasPayClient(baseUrl: '…/api/technas-pay')`.
 
 ## Obligatoire
 
@@ -136,7 +136,8 @@ Le client choisit une offre, ouvre la page de paiement, ne paie pas, puis revien
 
 - **Une référence = un essai.** Nouvelle offre, ou retour après expiration : un NOUVEL essai, `Status.retryReference(factureId, n + 1)`, `n` gardé en base. Réutiliser la référence d'un autre montant lève `reference_conflict` (409) ; celle d'un essai expiré, `payment_expired` (409). Les routes toutes faites (`appRoutes`) le font seules.
 - **Une facture n'est payée QUE sur `payment.completed`** (`onCompleted`). Jamais sur `returnUrl`, jamais à l'ouverture de la page.
-- **Un essai non payé ne bloque jamais un nouvel essai.** Même offre et essai `pending` ou `failed` : renvoyez le client sur la même page (`checkoutUrl()`). Autre offre : créez le nouvel essai, ne refusez pas. `expired` : marquez la tentative expirée et laissez recommencer.
+- **Un essai non payé ne bloque jamais un nouvel essai.** Même offre et essai `pending` ou `failed` : renvoyez le client sur la même page (`checkoutUrl()`). Autre offre : ANNULEZ l'ancien essai (`pay.cancelPayment(ancienId)`), puis créez le nouveau avec une NOUVELLE référence ; ne refusez pas. `expired` : marquez la tentative expirée et laissez recommencer.
+- **`cancelPayment` refuse quand c'est trop tard** : `payment_already_completed` (le client a payé l'ancienne offre : relisez le paiement, ne créez rien) ; `payment_in_progress` (une demande est en cours chez l'opérateur : ne créez PAS de second paiement, attendez l'avis de l'issue). Un paiement annulé reste `expired` (`canceledAt()`, `cancelReason()`), et son avis `payment.expired` porte `reason()` = `canceled` (`timeout` pour une échéance passée).
 - **Au retour du client**, vérifiez `pay.getPayment(dernierPaymentId)` avant de dire quoi que ce soit : votre base peut avoir manqué un avis.
 - **Un ancien essai payé APRÈS le nouveau** (le client a payé les deux pages) : n'activez rien deux fois, remboursez l'essai en trop avec `pay.refund(paymentId)`.
 
@@ -150,6 +151,11 @@ Payment payer(Facture f, long montant) {
         boolean memeOffre = dernier.amount().compareTo(BigDecimal.valueOf(montant)) == 0;
         if (memeOffre && !"expired".equals(dernier.status()) && dernier.checkoutUrl() != null) {
             return dernier; // pending ou failed : même page, le client peut encore payer
+        }
+        if (!"expired".equals(dernier.status())) {
+            // Autre offre : l'ancien lien est fermé d'abord. payment_in_progress ou
+            // payment_already_completed remontent : on ne crée alors AUCUN second paiement.
+            pay.cancelPayment(dernier.id());
         }
     }
     int essai = factures.essaiSuivant(f.id()); // n + 1, gardé en base
@@ -257,9 +263,10 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
 | `fx_mode_unavailable`, `fx_channel_unavailable` | Mode `converted` pas ouvert : proposer `local` (avec l'accord de l'utilisateur sur le risque) ou rester en `none` |
 | `quote_expired` | Le client rechoisit son pays sur la page, rien à faire côté code |
 | `reference_conflict` | Même référence, autres valeurs : ne pas réutiliser la référence |
+| `payment_already_completed` | `cancelPayment` : le paiement est déjà payé. Relire le paiement ; ne créer aucun nouvel essai |
 | `kyc_required` | Pièce d'identité à déposer : `e.details().get("consoleUrl")`, `reason` (`amount` ou `duration`). Proposer la carte ; ne pas réessayer |
 | `contract_required` | Le responsable doit accepter le contrat dans la console (`e.details().get("version")`) ; ne pas réessayer |
-| `payment_in_progress` | Réessayer dans une minute, même appel |
+| `payment_in_progress` | Réessayer dans une minute, même appel. Sur `cancelPayment` : ne créez PAS de second paiement, attendez l'avis de l'issue |
 | `payment_not_found`, `refund_not_found` | Mauvais identifiant ou autre compte |
 | `payment_expired` | Cette référence est un essai expiré : nouveau paiement avec une NOUVELLE référence, jamais le même appel |
 | `payment_not_refundable` | Seul un paiement `completed` se rembourse |

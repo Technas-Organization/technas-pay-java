@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
  */
 public final class AppRoutes {
     private static final Pattern PAYMENT_PATH = Pattern.compile("^/payments/([^/]+)$");
+    private static final Pattern CANCEL_PATH = Pattern.compile("^/payments/([^/]+)/cancel$");
     private static final Pattern ATTEMPT = Pattern.compile("^(.+?)-(?:card-)?\\d+$");
     /** Identifiant de commande ou de paiement accepté de l'app : court, sans « / », « . » ni espace. */
     private static final Pattern ID = Pattern.compile("^[A-Za-z0-9_-]{1,128}$");
@@ -133,16 +134,42 @@ public final class AppRoutes {
                     .currency(order.currency())
                     .description(order.description())
                     .metadata(meta);
+            PaymentRequest request = r.build();
             try {
-                return pay.askForPayment(r.build());
+                return pay.askForPayment(request);
             } catch (TechnasPayException e) {
-                // Essai expiré, ou référence d'un autre montant (le client a changé d'offre) : essai
-                // suivant. Un essai non payé ne bloque jamais un nouvel essai.
-                if (("payment_expired".equals(e.code()) || "reference_conflict".equals(e.code())) && attempt < maxAttempts) {
-                    continue;
+                if (attempt >= maxAttempts) {
+                    throw e;
                 }
-                throw e;
+                if ("payment_expired".equals(e.code())) {
+                    continue; // essai expiré : le suivant
+                }
+                if (!"reference_conflict".equals(e.code())) {
+                    throw e;
+                }
+                // Le client a changé d'offre (autre montant) : l'ancien essai est annulé s'il est encore
+                // ouvert, puis le suivant est créé. Payé ou demande en cours chez l'opérateur : aucun
+                // second paiement, l'erreur remonte à l'app.
+                closePrevious(request.reference());
             }
+        }
+    }
+
+    private void closePrevious(String reference) {
+        Payment previous;
+        try {
+            previous = pay.getPaymentByReference(reference);
+        } catch (TechnasPayException e) {
+            if ("payment_not_found".equals(e.code())) {
+                return;
+            }
+            throw e;
+        }
+        if ("completed".equals(previous.status())) {
+            throw new TechnasPayException("payment_already_completed", "L'essai précédent de cette commande est déjà payé", 409, Map.of());
+        }
+        if (!"expired".equals(previous.status())) {
+            pay.cancelPayment(previous.id());
         }
     }
 
@@ -227,7 +254,10 @@ public final class AppRoutes {
         }
         Matcher pm = PAYMENT_PATH.matcher(path);
         boolean isPayment = pm.matches();
-        boolean known = ("GET".equals(method) && ("/methods".equals(path) || isPayment)) || ("POST".equals(method) && "/payments".equals(path));
+        Matcher cm = CANCEL_PATH.matcher(path);
+        boolean isCancel = cm.matches();
+        boolean known = ("GET".equals(method) && ("/methods".equals(path) || isPayment))
+                || ("POST".equals(method) && ("/payments".equals(path) || isCancel));
         if (!known) {
             return err(404, "not_found", "Route inconnue");
         }
@@ -288,8 +318,9 @@ public final class AppRoutes {
                 }
                 return new AppResponse(200, Map.of("payment", start(orderId, order, payMethod).toAppJson()));
             }
-            // GET /payments/{id} : seulement si la commande de ce paiement est à cet utilisateur.
-            String id = URLDecoder.decode(pm.group(1), StandardCharsets.UTF_8);
+            // GET /payments/{id} et POST /payments/{id}/cancel : seulement si la commande de ce paiement
+            // est à cet utilisateur.
+            String id = URLDecoder.decode((isCancel ? cm : pm).group(1), StandardCharsets.UTF_8);
             if (!ID.matcher(id).matches()) {
                 return err(404, "payment_not_found", "Paiement introuvable");
             }
@@ -305,6 +336,10 @@ public final class AppRoutes {
             String orderId = orderIdOf(payment);
             if (orderId == null || resolveOrder.apply(orderId, user) == null) {
                 return err(404, "payment_not_found", "Paiement introuvable");
+            }
+            if (isCancel) {
+                // Le client change d'offre : l'essai affiché est annulé avant d'en démarrer un autre.
+                payment = pay.cancelPayment(payment.id());
             }
             return new AppResponse(200, Map.of("payment", payment.toAppJson()));
         } catch (TechnasPayException e) {
