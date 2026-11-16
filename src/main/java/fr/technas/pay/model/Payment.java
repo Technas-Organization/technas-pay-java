@@ -12,12 +12,18 @@ import java.util.Map;
  * @param status {@code pending}, {@code completed}, {@code failed} (PAS définitif), {@code expired} (définitif), {@code amount_mismatch}
  * @param method {@code mobile_money} ou {@code card}
  * @param checkoutUrl {@code null} après expiration : n'envoyez jamais un ancien lien
+ * @param canceledAt quand vous l'avez annulé ({@code cancelPayment}) ; {@code null} sinon. Un paiement
+ *     annulé est {@code expired} : {@code Status.canRetry} et vos états marchent tels quels
+ * @param cancelReason {@code canceled_by_partner}, ou {@code null}
+ * @param reason dans l'avis {@code payment.expired} : {@code canceled} (annulé par vous) ou
+ *     {@code timeout} (échéance passée) ; {@code null} dans un avis plus ancien
  */
 public record Payment(
         String id, String reference, BigDecimal amount, String currency, BigDecimal commission, BigDecimal netAmount,
         String status, String method, BigDecimal refundedAmount, BigDecimal originalAmount, String originalCurrency,
         String checkoutUrl, Map<String, Object> metadata, boolean testMode,
-        String createdAt, String completedAt, String expiresAt, String expiredAt) {
+        String createdAt, String completedAt, String expiresAt, String expiredAt,
+        String canceledAt, String cancelReason, String reason) {
 
     public static Payment fromJson(JsonNode r) {
         String method = Json.nstr(r, "method");
@@ -27,7 +33,8 @@ public record Payment(
                 method == null ? "mobile_money" : method, Json.num(r, "refunded_amount"),
                 Json.nnum(r, "original_amount"), Json.nstr(r, "original_currency"), Json.nstr(r, "checkout_url"),
                 Json.map(r, "metadata"), Json.bool(r, "test_mode"), Json.nstr(r, "created_at"),
-                Json.nstr(r, "completed_at"), Json.nstr(r, "expires_at"), Json.nstr(r, "expired_at"));
+                Json.nstr(r, "completed_at"), Json.nstr(r, "expires_at"), Json.nstr(r, "expired_at"),
+                Json.nstr(r, "canceled_at"), Json.nstr(r, "cancel_reason"), Json.nstr(r, "reason"));
     }
 
     /**

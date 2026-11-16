@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.3.0</version>
+  <version>v0.4.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.3.0") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.4.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -122,7 +122,7 @@ class TechnasPayRoutes {
 
 Hors Servlet (Ktor, Vert.x, Micronaut Netty) : construisez une `AppRequest(method, path, query, headers, rawBody, original)` et renvoyez `routes.handle(req)` (`status()`, `json()`).
 
-Routes : `GET /methods?orderId=`, `POST /payments` `{orderId, method?}`, `GET /payments/{id}`, `POST /webhook` (adresse à déclarer à Technas). Les essais expirés sont sautés tout seuls (`42-1`, `42-2`…) : rien à stocker. Carte : `.card(true)` et une `currency` dans `AppOrder`, puis `.authorizeAdmin(...)` pour l'écran du marchand (`GET /card/account`, `POST /card/onboarding`). Contrat : [`contract/app-contract.v1.json`](contract/app-contract.v1.json), rejoué par ce paquet, les autres SDK et le client Flutter.
+Routes : `GET /methods?orderId=`, `POST /payments` `{orderId, method?}`, `GET /payments/{id}`, `POST /payments/{id}/cancel` (le client change d'offre), `POST /webhook` (adresse à déclarer à Technas). Les essais expirés sont sautés tout seuls (`42-1`, `42-2`…) : rien à stocker. Carte : `.card(true)` et une `currency` dans `AppOrder`, puis `.authorizeAdmin(...)` pour l'écran du marchand (`GET /card/account`, `POST /card/onboarding`). Contrat : [`contract/app-contract.v1.json`](contract/app-contract.v1.json), rejoué par ce paquet, les autres SDK et le client Flutter.
 
 Exemples complets, compilés en CI : [`examples/spring-boot`](examples/spring-boot) (Java) et [`examples/kotlin-spring`](examples/kotlin-spring) (Kotlin).
 
@@ -131,6 +131,7 @@ Exemples complets, compilés en CI : [`examples/spring-boot`](examples/spring-bo
 | Méthode | Rôle |
 |---|---|
 | `getPayment(id)`, `getPaymentByReference(ref)` | Statut ; rattraper un avis manqué |
+| `cancelPayment(id)` | Annuler un paiement que personne n'a commencé à payer (le client change d'offre) |
 | `listTransactions(limit, status, cursor)` | Historique paginé (`nextCursor()`) |
 | `refund(paymentId)`, `refund(paymentId, amount, fees, reference)` | Rembourser au numéro ou à la carte qui a payé |
 | `recordExternalRefund(paymentId, amount, method, note, recordedBy, reference)` | Noter un remboursement fait hors Technas |
@@ -175,7 +176,7 @@ Le client choisit une offre, ouvre la page de paiement, ne paie pas, puis revien
 
 - **Une référence = un essai.** Nouvelle offre, ou retour après expiration : un NOUVEL essai, `Status.retryReference(factureId, n + 1)`, `n` gardé en base. Réutiliser la référence d'un autre montant lève `reference_conflict` (409) ; celle d'un essai expiré, `payment_expired` (409). Les routes toutes faites (`appRoutes`) le font seules.
 - **Une facture n'est payée QUE sur `payment.completed`** (`onCompleted`). Jamais sur `returnUrl`, jamais à l'ouverture de la page.
-- **Un essai non payé ne bloque jamais un nouvel essai.** Même offre et essai `pending` ou `failed` : renvoyez le client sur la même page (`checkoutUrl()`). Autre offre : créez le nouvel essai, ne refusez pas. `expired` : marquez la tentative expirée et laissez recommencer.
+- **Un essai non payé ne bloque jamais un nouvel essai.** Même offre et essai `pending` ou `failed` : renvoyez le client sur la même page (`checkoutUrl()`). Autre offre : ANNULEZ l'ancien essai (`pay.cancelPayment(ancienId)`), puis créez le nouveau avec une NOUVELLE référence ; ne refusez pas. Si l'annulation répond `payment_in_progress` ou `payment_already_completed`, ne créez aucun second paiement. `expired` : marquez la tentative expirée et laissez recommencer.
 - **Au retour du client**, vérifiez `pay.getPayment(dernierPaymentId)` avant de dire quoi que ce soit : votre base peut avoir manqué un avis.
 - **Un ancien essai payé APRÈS le nouveau** (le client a payé les deux pages) : n'activez rien deux fois, remboursez l'essai en trop avec `pay.refund(paymentId)`.
 
@@ -189,6 +190,9 @@ Payment payer(Facture f, long montant) {
         boolean memeOffre = dernier.amount().compareTo(BigDecimal.valueOf(montant)) == 0;
         if (memeOffre && !"expired".equals(dernier.status()) && dernier.checkoutUrl() != null) {
             return dernier; // pending ou failed : même page, le client peut encore payer
+        }
+        if (!"expired".equals(dernier.status())) {
+            pay.cancelPayment(dernier.id()); // autre offre : l'ancien lien est fermé d'abord
         }
     }
     int essai = factures.essaiSuivant(f.id()); // n + 1, gardé en base

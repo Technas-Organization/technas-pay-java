@@ -40,4 +40,49 @@ class ChangementDOffreTest {
         assertEquals(409, e.status());
         assertFalse(e.retryable());
     }
+
+    @Test
+    void annulerLAncienEssaiPuisCreerLeNouveau() {
+        Map<String, Object> annule = new java.util.LinkedHashMap<>(ClientTest.payment(Map.of("id", "pay_1", "reference", "F-1", "status", "expired",
+                "canceled_at", "2026-11-16T09:00:00Z", "cancel_reason", "canceled_by_partner")));
+        annule.put("checkout_url", null);
+        FakeTransport t = new FakeTransport()
+                .reply(200, annule)
+                .reply(200, annule)
+                .reply(409, Map.of("code", "payment_in_progress", "message", "m"))
+                .reply(409, Map.of("code", "payment_already_completed", "message", "m"));
+        TechnasPay pay = ClientTest.pay(t);
+        Payment p = pay.cancelPayment("pay_1");
+        assertEquals("POST", t.calls.get(0).method());
+        assertEquals("https://gw.test/v1/payments/pay_1/cancel", t.calls.get(0).url());
+        assertEquals("expired", p.status());
+        assertEquals(null, p.checkoutUrl());
+        assertEquals("2026-11-16T09:00:00Z", p.canceledAt());
+        assertEquals("canceled_by_partner", p.cancelReason());
+        assertEquals(true, Status.canRetry(p.status()));
+        assertEquals("2026-11-16T09:00:00Z", pay.cancelPayment("pay_1").canceledAt(), "rejouer rend le même résultat");
+        TechnasPayException enCours = assertThrows(TechnasPayException.class, () -> pay.cancelPayment("pay_1"));
+        assertEquals("payment_in_progress", enCours.code());
+        TechnasPayException paye = assertThrows(TechnasPayException.class, () -> pay.cancelPayment("pay_1"));
+        assertEquals("payment_already_completed", paye.code());
+        assertFalse(paye.retryable());
+        assertThrows(TechnasPayException.class, () -> pay.cancelPayment("../balance"));
+        assertEquals(4, t.calls.size());
+    }
+
+    @Test
+    void avisExpireDitPourquoi() {
+        TechnasPay pay = ClientTest.pay(new FakeTransport());
+        java.util.List<String> seen = new java.util.ArrayList<>();
+        fr.technas.pay.webhook.WebhookHandlers h = fr.technas.pay.webhook.WebhookHandlers.builder()
+                .onExpired(e -> seen.add(e.payment().reason() + "/" + e.payment().canceledAt())).build();
+        for (String data : new String[] {
+            "{\"id\":\"p\",\"reference\":\"F-1\",\"status\":\"expired\",\"amount\":1,\"currency\":\"XOF\",\"reason\":\"canceled\",\"canceled_at\":\"2026-11-16T09:00:00Z\"}",
+            "{\"id\":\"p\",\"reference\":\"F-1\",\"status\":\"expired\",\"amount\":1,\"currency\":\"XOF\",\"reason\":\"timeout\"}",
+            "{\"id\":\"p\",\"reference\":\"F-1\",\"status\":\"expired\",\"amount\":1,\"currency\":\"XOF\"}"}) {
+            String body = "{\"id\":\"e\",\"type\":\"payment.expired\",\"created_at\":\"x\",\"data\":" + data + "}";
+            pay.handleWebhook(body, fr.technas.pay.webhook.Signature.sign(body, ClientTest.WEBHOOK_SECRET), h);
+        }
+        assertEquals(java.util.List.of("canceled/2026-11-16T09:00:00Z", "timeout/null", "null/null"), seen);
+    }
 }
