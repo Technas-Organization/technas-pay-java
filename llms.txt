@@ -1,6 +1,6 @@
 # technas-pay-java (Java, Kotlin)
 
-> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.4.0.
+> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.4.1.
 
 Agents de code : lisez d'abord AGENTS.md.
 

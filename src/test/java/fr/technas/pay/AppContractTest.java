@@ -116,7 +116,7 @@ class AppContractTest {
                 }
             }));
         }
-        assertEquals(30, tests.size(), "le contrat v1 a 30 cas");
+        assertEquals(31, tests.size(), "le contrat v1 a 31 cas");
         return tests.stream();
     }
 

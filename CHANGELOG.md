@@ -1,5 +1,9 @@
 # Journal
 
+## 0.4.1 (16/11/2026)
+
+Routes toutes faites : si l'annulation de l'ancien essai répond 404 (serveur sans la route d'annulation), l'essai suivant est créé comme avant. Contrat v1 à 31 cas.
+
 ## 0.4.0 (16/11/2026)
 
 `cancelPayment(id)` (`POST /v1/payments/{id}/cancel`) : annule un paiement que personne n'a commencé à payer. `Payment` : `canceledAt()`, `cancelReason()`, `reason()` (avis `payment.expired` : `canceled` ou `timeout`). Routes toutes faites : `POST /payments/{id}/cancel`, et sur `reference_conflict` l'ancien essai est relu puis annulé avant le suivant (aucun second paiement si l'annulation répond `payment_in_progress` ou `payment_already_completed`). Contrat v1 à 30 cas.
