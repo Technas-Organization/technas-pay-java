@@ -11,6 +11,7 @@ import fr.technas.pay.internal.Json;
 import fr.technas.pay.model.Customer;
 import fr.technas.pay.model.Payment;
 import fr.technas.pay.model.PaymentRequest;
+import fr.technas.pay.webhook.Event;
 import fr.technas.pay.webhook.Signature;
 import fr.technas.pay.webhook.WebhookHandlers;
 import fr.technas.pay.webhook.WebhookVerificationException;
@@ -203,6 +204,50 @@ class ClientTest {
         String body = "{\"id\":\"e\",\"type\":\"payment.completed\",\"created_at\":\"x\",\"data\":{\"id\":\"p\",\"reference\":\"r\",\"status\":\"completed\"}}";
         WebhookHandlers failing = WebhookHandlers.builder().onCompleted(e -> { throw new IllegalStateException("base en panne"); }).build();
         assertThrows(IllegalStateException.class, () -> pay.handleWebhook(body, Signature.sign(body, WEBHOOK_SECRET), failing));
+    }
+
+    @Test
+    void avisDeReversementLusEtChampAbsentNul() {
+        TechnasPay pay = pay(new FakeTransport());
+        List<Event> seen = new ArrayList<>();
+        WebhookHandlers h = WebhookHandlers.builder().onSettlement(seen::add).build();
+        String[][] events = {
+            {"settlement.completed", "{\"id\":\"s-1\",\"amount\":392,\"fee\":61,\"net_amount\":331,\"currency\":\"XOF\","
+                    + "\"status\":\"completed\",\"created_at\":\"2026-11-19T21:15:59+00:00\"}"},
+            {"settlement.failed", "{\"id\":\"s-2\",\"amount\":392,\"fee\":61,\"net_amount\":331,\"currency\":\"XOF\","
+                    + "\"status\":\"failed\",\"created_at\":\"2026-11-19T21:15:59+00:00\"}"},
+            {"settlement.completed", "{}"},
+        };
+        for (String[] ev : events) {
+            String body = "{\"id\":\"e\",\"type\":\"" + ev[0] + "\",\"created_at\":\"2026-11-19T21:18:32+00:00\",\"data\":" + ev[1] + "}";
+            assertEquals(200, pay.handleWebhook(body, Signature.sign(body, WEBHOOK_SECRET), h).status());
+        }
+        assertEquals(3, seen.size());
+        var ok = seen.get(0).settlement();
+        assertEquals("s-1", ok.id());
+        assertEquals(0, new BigDecimal("392").compareTo(ok.amount()));
+        assertEquals(0, new BigDecimal("61").compareTo(ok.fee()));
+        assertEquals(0, new BigDecimal("331").compareTo(ok.netAmount()));
+        assertEquals("XOF", ok.currency());
+        assertEquals("completed", ok.status());
+        assertEquals("2026-11-19T21:15:59+00:00", ok.createdAt());
+        assertEquals("2026-11-19T21:18:32+00:00", seen.get(0).createdAt());
+        assertEquals(392, seen.get(0).data().get("amount"));
+        assertNull(seen.get(0).payment());
+        assertNull(seen.get(0).refund());
+        assertEquals("settlement.failed", seen.get(1).type());
+        assertEquals("failed", seen.get(1).settlement().status());
+        assertEquals(0, new BigDecimal("392").compareTo(seen.get(1).settlement().amount()));
+        var vide = seen.get(2).settlement();
+        assertNull(vide.id());
+        assertNull(vide.amount());
+        assertNull(vide.fee());
+        assertNull(vide.netAmount());
+        assertNull(vide.currency());
+        assertNull(vide.status());
+        assertNull(vide.createdAt());
+        String autre = "{\"id\":\"e\",\"type\":\"payment.completed\",\"created_at\":\"x\",\"data\":{\"id\":\"p\",\"reference\":\"r\",\"status\":\"completed\"}}";
+        assertNull(pay.verifyWebhook(autre, Signature.sign(autre, WEBHOOK_SECRET)).settlement());
     }
 
     @Test

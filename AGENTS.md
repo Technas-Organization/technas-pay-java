@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.4.1</version>
+  <version>v0.5.0</version>
 </dependency>
 ```
 
@@ -36,7 +36,7 @@ Dépendance JitPack (voir le README) :
 | Rembourser | `pay.refund(paymentId)` ou `pay.refund(paymentId, amount, fees, reference)` |
 | Noter un remboursement fait hors Technas | `pay.recordExternalRefund(paymentId, 2000, "Flooz", null, null, null)` |
 | Recharger le solde | `pay.topUpBalance(20000, "XOF", returnUrl)`, ouvrir `checkoutUrl()` ; `onTopUp` |
-| Solde, reversements, historique | `pay.getBalance()`, `pay.getSettlements()`, `pay.listTransactions(20, null, null)` |
+| Solde, reversements, historique | `pay.getBalance()`, `pay.getSettlements()`, `pay.listTransactions(20, null, null)` ; `onSettlement` |
 | Hors zone CFA | `pay.getFxMode()`, `pay.setFxMode("local", true, null, null)` (après accord explicite) |
 | Pays où vendre | `pay.setCountryRules(null, List.of("NG"))`, ou `.allowedCountries(…)` / `.excludedCountries(…)` par paiement |
 | Numéro de reversement (administrateur) | `pay.getPayoutNetworks("TG")`, `pay.setPayoutDestination("TG", "moov_tg", "+228…", "Nom")` |
@@ -191,6 +191,9 @@ Payment payer(Facture f, long montant) {
 - **`onRefund`** : prévenez le client, par e-mail ou SMS. Technas ne lui écrit pas.
   - `refund.completed` : l'argent est arrivé, `sentAmount` sur son téléphone.
   - `refund.failed` : rien n'est parti et votre solde est recrédité. Proposez un autre moyen, ou refaites le même appel `refund` : il est permis après un échec.
+- **`onSettlement`** : l'issue d'un reversement de votre solde vers votre numéro mobile money, dans `event.settlement()`.
+  - `settlement.completed` : `netAmount` est arrivé sur le numéro. `amount` a quitté le solde, `fee` (frais du versement, à votre charge) fait la différence.
+  - `settlement.failed` : rien n'est arrivé et `amount` est recrédité sur votre solde.
 
 ## Paiement par carte (`.method("card")`)
 

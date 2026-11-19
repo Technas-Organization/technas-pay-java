@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.4.1</version>
+  <version>v0.5.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.4.1") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.5.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -83,7 +83,9 @@ ResponseEntity<Map<String, Object>> webhook(@RequestBody String raw,          //
 }
 ```
 
-Fonctions disponibles : `onCompleted`, `onFailed` (pas définitif), `onExpired` (définitif), `onRefund`, `onTopUp`, `onPayoutDestination`, `onBalanceConverted`, `onFxModeUpdated`, `onCardAccountUpdated`, `onKycRequired`. Une exception dans votre fonction doit remonter : Technas relivrera.
+Fonctions disponibles : `onCompleted`, `onFailed` (pas définitif), `onExpired` (définitif), `onRefund`, `onTopUp`, `onPayoutDestination`, `onBalanceConverted`, `onFxModeUpdated`, `onCardAccountUpdated`, `onKycRequired`, `onSettlement`. Une exception dans votre fonction doit remonter : Technas relivrera.
+
+`onSettlement` reçoit `settlement.completed` et `settlement.failed`, l'issue d'un reversement de votre solde vers votre numéro mobile money. `event.settlement()` donne `amount()` (sorti du solde), `fee()` (frais du versement, à votre charge) et `netAmount()` (arrivé sur le numéro). Sur `settlement.failed`, `amount()` est recrédité sur le solde.
 
 Kotlin :
 

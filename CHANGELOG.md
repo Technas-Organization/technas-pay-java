@@ -1,5 +1,9 @@
 # Journal
 
+## 0.5.0 (19/11/2026)
+
+Avis `settlement.completed` et `settlement.failed` (issue d'un reversement du solde vers le numéro mobile money) : `onSettlement`, `event.settlement()` (`Settlement` : `id()`, `amount()`, `fee()`, `netAmount()`, `currency()`, `status()`, `createdAt()` ; un champ absent est `null`). Sur `settlement.failed`, `amount()` est recrédité sur le solde.
+
 ## 0.4.1 (16/11/2026)
 
 Routes toutes faites : si l'annulation de l'ancien essai répond 404 (serveur sans la route d'annulation), l'essai suivant est créé comme avant. Contrat v1 à 31 cas.

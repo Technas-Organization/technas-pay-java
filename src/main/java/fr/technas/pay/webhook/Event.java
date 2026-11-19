@@ -6,6 +6,7 @@ import fr.technas.pay.model.CardAccount;
 import fr.technas.pay.model.KycNotice;
 import fr.technas.pay.model.Payment;
 import fr.technas.pay.model.Refund;
+import fr.technas.pay.model.Settlement;
 import java.util.Map;
 
 /**
@@ -14,7 +15,8 @@ import java.util.Map;
  * doublon.
  */
 public record Event(String id, String type, String createdAt, Map<String, Object> data,
-                    Payment payment, Refund refund, CardAccount cardAccount, KycNotice kyc) {
+                    Payment payment, Refund refund, CardAccount cardAccount, KycNotice kyc,
+                    Settlement settlement) {
 
     static Event parse(JsonNode raw) {
         if (raw == null || !raw.isObject() || Json.nstr(raw, "id") == null || Json.nstr(raw, "type") == null
@@ -27,6 +29,7 @@ public record Event(String id, String type, String createdAt, Map<String, Object
         Refund refund = null;
         CardAccount card = null;
         KycNotice kyc = null;
+        Settlement settlement = null;
         switch (type) {
             case "payment.completed", "payment.failed", "payment.expired" -> {
                 if (Json.nstr(d, "id") == null) {
@@ -37,10 +40,12 @@ public record Event(String id, String type, String createdAt, Map<String, Object
             case "refund.completed", "refund.failed", "refund.recorded" -> refund = Refund.fromJson(d);
             case "card_account.updated" -> card = CardAccount.fromJson(d);
             case "account.kyc_required" -> kyc = KycNotice.fromJson(d);
+            case "settlement.completed", "settlement.failed" -> settlement = Settlement.fromJson(d);
             default -> {
                 // payout_destination.*, balance.*, fx_mode.updated, types inconnus : `data`.
             }
         }
-        return new Event(Json.str(raw, "id"), type, Json.nstr(raw, "created_at"), Json.map(raw, "data"), payment, refund, card, kyc);
+        return new Event(Json.str(raw, "id"), type, Json.nstr(raw, "created_at"), Json.map(raw, "data"), payment, refund, card, kyc,
+                settlement);
     }
 }

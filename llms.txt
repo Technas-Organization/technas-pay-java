@@ -1,12 +1,14 @@
 # technas-pay-java (Java, Kotlin)
 
-> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.4.1.
+> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.5.0.
 
 Agents de code : lisez d'abord AGENTS.md.
 
 Client qui change d'offre ou revient plus tard : cancelPayment(ancienId) puis nouvel essai (référence suivante), jamais « paiement déjà existant » ; payé seulement sur payment.completed ; au retour, getPayment(dernierPaymentId) d'abord ; un second paiement réussi se rembourse.
 
 Une référence = un essai : `Status.retryReference(orderId, attempt)`. Relancez avec une NOUVELLE référence seulement après payment.expired (`Status.canRetry`), jamais sur failed.
+
+Reversement du solde vers le numéro mobile money : avis settlement.completed et settlement.failed, `onSettlement`, `event.settlement()` (amount, fee, netAmount) ; sur failed, amount est recrédité sur le solde.
 
 Routes toutes faites pour une app Flutter : `pay.appRoutes(authorize, resolveOrder).build()` + `TechnasPayServlet.handle(routes, req, res, "/api/technas-pay")`.
 

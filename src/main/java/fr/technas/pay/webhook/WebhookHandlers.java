@@ -24,6 +24,7 @@ public final class WebhookHandlers {
     private final Consumer<Event> onFxModeUpdated;
     private final Consumer<Event> onCardAccountUpdated;
     private final Consumer<Event> onKycRequired;
+    private final Consumer<Event> onSettlement;
 
     private WebhookHandlers(Builder b) {
         onCompleted = b.onCompleted;
@@ -36,6 +37,7 @@ public final class WebhookHandlers {
         onFxModeUpdated = b.onFxModeUpdated;
         onCardAccountUpdated = b.onCardAccountUpdated;
         onKycRequired = b.onKycRequired;
+        onSettlement = b.onSettlement;
     }
 
     public static Builder builder() {
@@ -74,6 +76,9 @@ public final class WebhookHandlers {
         if ("account.kyc_required".equals(type)) {
             return onKycRequired;
         }
+        if (type.startsWith("settlement.")) {
+            return onSettlement;
+        }
         return null;
     }
 
@@ -88,6 +93,7 @@ public final class WebhookHandlers {
         private Consumer<Event> onFxModeUpdated;
         private Consumer<Event> onCardAccountUpdated;
         private Consumer<Event> onKycRequired;
+        private Consumer<Event> onSettlement;
 
         private Builder() {
         }
@@ -145,6 +151,12 @@ public final class WebhookHandlers {
         /** Seuil d'identité ({@code event.kyc()}) : prévenez le responsable, lien {@code consoleUrl()}. */
         public Builder onKycRequired(Consumer<Event> f) {
             onKycRequired = f;
+            return this;
+        }
+
+        /** Issue d'un reversement ({@code event.settlement()}) : sur {@code settlement.failed}, {@code amount()} est recrédité sur le solde. */
+        public Builder onSettlement(Consumer<Event> f) {
+            onSettlement = f;
             return this;
         }
 
