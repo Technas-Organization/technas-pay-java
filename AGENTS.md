@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.6.0</version>
+  <version>v0.7.0</version>
 </dependency>
 ```
 
@@ -31,6 +31,8 @@ Dépendance JitPack (voir le README) :
 | Faire payer une commande | `pay.askForPayment(PaymentRequest.builder().amount(5000).reference(Status.retryReference(orderId, attempt)).customer(Customer.of(email, name)).returnUrl(…).build())`, puis rediriger (303) vers `payment.checkoutUrl()` |
 | Savoir combien le client paiera et combien vous recevrez, avant de créer le paiement | `pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build())` (ou `pay.getFees`) → `customerTotal()` (à afficher au client), `processingFee()`, `commission()`, `netAmount()`, `networks()` |
 | Faire payer TOUS les frais au client (vous recevez exactement `amount`) | `.fees("customer")` dans `PaymentRequest` (ou réglage du compte) ; `"partner"` : le client paie `amount`, frais compris |
+| Lister les moyens et réseaux ouverts, ce qui est activé, l'ordre | `pay.getPaymentMethods(country)` ; constantes `TechnasPay.PAYMENT_METHODS`, `TechnasPay.NETWORKS` (une constante par valeur : `PaymentMethod.CARD`, `Network.MIXX`…) |
+| Activer / éteindre des moyens et réseaux, fixer l'ordre d'affichage | `pay.setPaymentMethods(PaymentMethodsRequest.builder().methods(…).networks(…).networkOrder(…).build())` ; par paiement : `.networks(List.of(Network.MIXX))` dans `PaymentRequest` |
 | Savoir qu'elle est payée | avis signé : `pay.handleWebhook(corpsBrut, signature, WebhookHandlers.builder().onCompleted(…).build())` |
 | Rattraper un avis manqué | `pay.getPaymentByReference(reference)` |
 | Le client change d'offre ou revient plus tard | `pay.cancelPayment(ancienId)`, puis nouvel essai `Status.retryReference(factureId, n + 1)` ; au retour, `pay.getPayment(dernierPaymentId)` d'abord (voir la section dédiée) |
@@ -273,6 +275,9 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
 | `currency_not_enabled` | Devise non ouverte sur ce compte : contacter Technas |
 | `currency_conversion_unavailable` | Client hors zone CFA, mode de change `none` : ne pas proposer ce pays ; voir `getFxMode()` |
 | `country_not_allowed` | Le marchand ne vend pas dans ce pays : ne pas le proposer |
+| `method_not_enabled` | Moyen éteint sur ce compte : ne pas le proposer ; voir `getPaymentMethods(null)` |
+| `network_not_enabled` | Réseau éteint sur ce compte : ne pas le proposer ; voir `getPaymentMethods(null)` |
+| `network_not_available` | Réseau pas ouvert dans ce pays : ne pas le proposer ; voir `getPaymentMethods(country)` |
 | `country_not_available` | Pays pas prêt : `e.details().get("reason")` dit quoi (`no_payout_number`…) |
 | `risk_not_accepted` | Montrer `e.details().get("risk")` à l'utilisateur ; n'activer qu'avec son accord explicite |
 | `fx_mode_unavailable`, `fx_channel_unavailable` | Mode `converted` pas ouvert : proposer `local` (avec l'accord de l'utilisateur sur le risque) ou rester en `none` |

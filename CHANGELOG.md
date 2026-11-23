@@ -1,5 +1,17 @@
 # Journal
 
+## 0.7.0 (23/11/2026)
+
+Les moyens et les réseaux, en listes fermées :
+- constantes `TechnasPay.PAYMENT_METHODS` et `TechnasPay.NETWORKS` (`List<String>`, aussi `PaymentMethod.ALL` et `Network.ALL`), une constante par valeur : `PaymentMethod.MOBILE_MONEY`, `PaymentMethod.CARD`, `Network.MIXX` (Mixx by Yas), `Network.MOOV` (Moov Money / Flooz), `Network.MTN_MOMO`, `Network.ORANGE_MONEY`, `Network.WAVE`… ;
+- `pay.getPaymentMethods()` / `pay.getPaymentMethods(country)` (moyens et réseaux ouverts, `enabled()`, votre ordre) et `pay.setPaymentMethods(PaymentMethodsRequest)` → `PaymentMethods` (`methods()` : `MethodSetting`, `networks()` : `NetworkSetting`, `networkOrder()`). Un champ non donné ne change pas ; `.allNetworks()` = tous les réseaux ;
+- `PaymentRequest.builder().networks(List.of(Network.MIXX))` : les réseaux permis pour un paiement (envoyé seulement s'il n'est pas vide ; une valeur hors de `NETWORKS` est refusée avant tout appel) ;
+- `Payment.network()` (réseau avec lequel le client a payé, aussi dans l'avis `event.payment()`), `Payment.networks()` (`null` sur un serveur ancien) ;
+- nouveaux refus : `method_not_enabled`, `network_not_enabled`, `network_not_available` (422) ;
+- ⚠️ `quote()` : `networks().get(i).network()` vaut maintenant un réseau de `NETWORKS` (`"mixx"`, `"moov"`) au lieu d'un code technique (`"togocel"`, `"moov_tg"`). En entrée, `QuoteRequest.builder().network("togocel")` reste accepté et vise `"mixx"`. Un réseau plus récent que ce SDK est gardé tel quel.
+
+Le constructeur des records `Payment` et `PaymentRequest` prend ces nouveaux champs à la fin.
+
 ## 0.6.0 (23/11/2026)
 
 Qui paie les frais, et combien paie le client :

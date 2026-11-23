@@ -7,7 +7,8 @@ import java.math.BigDecimal;
 /**
  * Un réseau du devis : ce que le client paie s'il paie avec lui.
  *
- * @param network code du réseau (ex. {@code togocel}), à redonner dans {@code QuoteRequest.network}
+ * @param network le réseau ({@code Network}), ex. {@code mixx}, à redonner dans {@code QuoteRequest.network}.
+ *     Un réseau plus récent que ce SDK est gardé tel quel
  * @param networkName le nom que le client connaît (ex. « Mixx by Yas »)
  * @param customerTotal ce que le client paie, frais du réseau de paiement compris : le montant à afficher
  * @param processingFee les frais du réseau de paiement dans {@code customerTotal}

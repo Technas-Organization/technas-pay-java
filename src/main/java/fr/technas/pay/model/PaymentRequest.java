@@ -21,11 +21,14 @@ import java.util.Map;
  * <p>{@code .fees("customer")} : le client paie tous les frais (réseau de paiement et commission
  * Technas), vous recevez exactement {@code amount}. {@code .fees("partner")} : le client paie
  * {@code amount}, frais compris. Sans {@code fees} : le réglage de votre compte.
+ *
+ * <p>{@code .networks(List.of(Network.MIXX))} : les réseaux mobile money permis pour CE paiement
+ * (parmi ceux de votre compte). Absent ou vide : tous ceux que vous avez activés.
  */
 public record PaymentRequest(BigDecimal amount, String reference, Customer customer, String returnUrl, String method,
                              String currency, String description, Map<String, Object> metadata,
                              List<String> allowedCountries, List<String> excludedCountries, boolean askCountry,
-                             String fees) {
+                             String fees, List<String> networks) {
 
     public static Builder builder() {
         return new Builder();
@@ -44,6 +47,7 @@ public record PaymentRequest(BigDecimal amount, String reference, Customer custo
         private List<String> excludedCountries;
         private boolean askCountry;
         private String fees;
+        private List<String> networks;
 
         private Builder() {
         }
@@ -122,9 +126,19 @@ public record PaymentRequest(BigDecimal amount, String reference, Customer custo
             return this;
         }
 
+        /**
+         * Les réseaux mobile money permis pour CE paiement ({@code Network.MIXX}…, parmi ceux de votre
+         * compte). {@code null} ou vide : tous ceux que vous avez activés. Une valeur hors de
+         * {@code Network.ALL} est refusée avant tout appel ({@code invalid_request}).
+         */
+        public Builder networks(List<String> v) {
+            networks = v == null ? null : List.copyOf(v);
+            return this;
+        }
+
         public PaymentRequest build() {
             return new PaymentRequest(amount, reference, customer, returnUrl, method, currency, description, metadata,
-                    allowedCountries, excludedCountries, askCountry, fees);
+                    allowedCountries, excludedCountries, askCountry, fees, networks);
         }
     }
 }

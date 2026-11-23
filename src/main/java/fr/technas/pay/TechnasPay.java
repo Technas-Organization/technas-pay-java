@@ -14,6 +14,8 @@ import fr.technas.pay.model.CardAccount;
 import fr.technas.pay.model.CardOnboardingLink;
 import fr.technas.pay.model.Customer;
 import fr.technas.pay.model.Payment;
+import fr.technas.pay.model.PaymentMethods;
+import fr.technas.pay.model.PaymentMethodsRequest;
 import fr.technas.pay.model.PaymentRequest;
 import fr.technas.pay.model.Quote;
 import fr.technas.pay.model.QuoteRequest;
@@ -52,7 +54,13 @@ import java.util.regex.Pattern;
  * }</pre>
  */
 public final class TechnasPay {
-    public static final String VERSION = "0.6.0";
+    public static final String VERSION = "0.7.0";
+
+    /** Tous les moyens de paiement, à énumérer : {@code mobile_money}, {@code card} (voir {@link PaymentMethod}). */
+    public static final List<String> PAYMENT_METHODS = PaymentMethod.ALL;
+
+    /** Tous les réseaux mobile money, à énumérer : {@code mixx}, {@code moov}, {@code mtn_momo}… (voir {@link Network}). */
+    public static final List<String> NETWORKS = Network.ALL;
     public static final String DEFAULT_BASE_URL = "https://pay-api.technas.fr";
     public static final String SECRET_ENV = "TECHNAS_PAY_SECRET";
     private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([\\x21-\\x2d\\x2f-\\x7e]+)\\.([\\x21-\\x2d\\x2f-\\x7e]+)$"); // ASCII imprimable sans « . »
@@ -197,6 +205,20 @@ public final class TechnasPay {
         return fees;
     }
 
+    private static List<String> networks(List<String> values, String name) {
+        if (values != null && !Network.ALL.containsAll(values)) {
+            throw new TechnasPayException("invalid_request", name + " : des réseaux de Network.ALL (mixx, moov, mtn_momo…)");
+        }
+        return values;
+    }
+
+    private static List<String> methods(List<String> values) {
+        if (values != null && !PaymentMethod.ALL.containsAll(values)) {
+            throw new TechnasPayException("invalid_request", "methods : \"mobile_money\" et \"card\"");
+        }
+        return values;
+    }
+
     private static String method(String method) {
         String m = method == null ? "mobile_money" : method;
         if (!"mobile_money".equals(m) && !"card".equals(m)) {
@@ -211,6 +233,7 @@ public final class TechnasPay {
     public Payment askForPayment(PaymentRequest in) {
         String method = method(in.method());
         String fees = fees(in.fees());
+        List<String> networks = networks(in.networks(), "networks");
         positive(in.amount(), "mobile_money".equals(method));
         String currency = in.currency() == null ? "" : Ascii.upper(in.currency().trim());
         Customer c = in.customer();
@@ -259,6 +282,9 @@ public final class TechnasPay {
         }
         if (fees != null) {
             body.put("fees", fees);
+        }
+        if (networks != null && !networks.isEmpty()) {
+            networks.forEach(body.putArray("networks")::add);
         }
         return Payment.fromJson(call("POST", "/v1/payments", body));
     }
@@ -472,6 +498,47 @@ public final class TechnasPay {
             body.put("home_currency", homeCurrency);
         }
         return Json.plain(call("PUT", "/v1/fx", body));
+    }
+
+    /** Voir {@link #getPaymentMethods(String)}, tous pays. */
+    public PaymentMethods getPaymentMethods() {
+        return getPaymentMethods(null);
+    }
+
+    /**
+     * Les moyens et réseaux ouverts pour votre compte (par pays, {@code country} facultatif), ce que
+     * vous avez activé ({@code enabled}) et votre ordre d'affichage. Pour construire votre propre
+     * choix de paiement, ou vos réglages.
+     */
+    public PaymentMethods getPaymentMethods(String country) {
+        String c = country == null ? "" : Ascii.upper(country.trim());
+        return PaymentMethods.fromJson(call("GET", "/v1/payment-methods" + (c.isEmpty() ? "" : "?country=" + q(c)), null));
+    }
+
+    /**
+     * Activer ou éteindre des moyens ({@link PaymentMethod}) et des réseaux ({@link Network}), et fixer
+     * l'ordre d'affichage sur la page de paiement. Un champ non donné ne change pas ;
+     * {@code allNetworks()} : tous les réseaux. Une valeur inconnue est refusée avant tout appel.
+     */
+    public PaymentMethods setPaymentMethods(PaymentMethodsRequest in) {
+        methods(in.methods());
+        networks(in.networks(), "networks");
+        networks(in.networkOrder(), "networkOrder");
+        ObjectNode body = Json.object();
+        if (in.allMethods()) {
+            body.putNull("methods");
+        } else if (in.methods() != null) {
+            in.methods().forEach(body.putArray("methods")::add);
+        }
+        if (in.allNetworks()) {
+            body.putNull("networks");
+        } else if (in.networks() != null) {
+            in.networks().forEach(body.putArray("networks")::add);
+        }
+        if (in.networkOrder() != null) {
+            in.networkOrder().forEach(body.putArray("network_order")::add);
+        }
+        return PaymentMethods.fromJson(call("PUT", "/v1/payment-methods", body));
     }
 
     /** {@code allowed} {@code null} : tous les pays. */

@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.6.0</version>
+  <version>v0.7.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.6.0") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.7.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -105,6 +105,30 @@ Payment payment = pay.askForPayment(PaymentRequest.builder()
 - Montant trop petit : `amount_too_low` avec `e.details().get("minimumAmount")`. Au Togo, le réseau n'accepte rien sous 200 F : en `"partner"`, 209 F au minimum ; en `"customer"`, 200 F passent.
 - Par carte, seulement `"partner"` : ajouter des frais au paiement par carte d'un consommateur est interdit en Europe. `pay.quote(QuoteRequest.builder().amount(20).method("card").currency("EUR").build())` rend la commission (`netAmount()` `null` : les frais de la carte dépendent de la carte du client).
 
+### Les moyens et les réseaux : à vous de choisir
+
+Les moyens (`TechnasPay.PAYMENT_METHODS` : `"mobile_money"`, `"card"`) et les réseaux mobile money (`TechnasPay.NETWORKS` : `"mixx"` pour Mixx by Yas, `"moov"` pour Moov Money / Flooz, `"mtn_momo"`, `"orange_money"`, `"wave"`…) sont des listes fermées, à énumérer, avec une constante par valeur (`PaymentMethod.CARD`, `Network.MIXX`, `Network.ORANGE_MONEY`…). Comme `method()` et `fees`, ce sont des chaînes. Un réseau, c'est le porte-monnaie que le client a dans sa poche.
+
+```java
+PaymentMethods ouverts = pay.getPaymentMethods("TG");
+// ouverts.networks() : [NetworkSetting[network=mixx, name=Mixx by Yas, country=TG, …, enabled=true], …] dans VOTRE ordre
+
+// Réglage du compte : éteindre la carte, mettre Mixx en premier
+pay.setPaymentMethods(PaymentMethodsRequest.builder()
+        .methods(List.of(PaymentMethod.MOBILE_MONEY))
+        .networkOrder(List.of(Network.MIXX, Network.MOOV))
+        .build());
+
+// Pour un paiement : seulement certains réseaux
+pay.askForPayment(PaymentRequest.builder().amount(5000).reference(reference).customer(customer).returnUrl(returnUrl)
+        .networks(List.of(Network.MIXX)).build());
+```
+
+- `setPaymentMethods` : un champ non donné ne change pas ; `.allNetworks()` = tous les réseaux (`.allMethods()` : tous les moyens). Une valeur hors de `PAYMENT_METHODS` / `NETWORKS` est refusée avant tout appel (`invalid_request`).
+- `payment.network()` : le réseau avec lequel le client a payé (une fois payé) ; `payment.networks()` : les réseaux permis pour ce paiement, s'il les a restreints.
+- Refus : `method_not_enabled` (moyen éteint sur votre compte), `network_not_enabled` (réseau éteint sur votre compte), `network_not_available` (pas ouvert dans ce pays).
+- La page de paiement Technas et les devis respectent vos réseaux et leur ordre. L'étape où le client confirme sur la page du réseau de paiement peut encore lui montrer tous les réseaux du pays : ce sera fermé dans une prochaine version.
+
 ## 3. Recevoir l'avis de paiement
 
 Technas signe chaque avis (`X-Technas-Payment-Signature: t=…,s=…`). Le SDK vérifie la signature sur le **corps brut**, puis appelle votre fonction.
@@ -172,6 +196,7 @@ Exemples complets, compilés en CI : [`examples/spring-boot`](examples/spring-bo
 |---|---|
 | `getPayment(id)`, `getPaymentByReference(ref)` | Statut ; rattraper un avis manqué |
 | `quote(QuoteRequest)`, `getFees(QuoteRequest)` | Devis : ce que le client paiera (`customerTotal()`), ce que vous recevrez (`netAmount()`), réseau par réseau ; rien n'est créé |
+| `getPaymentMethods(country)`, `setPaymentMethods(PaymentMethodsRequest)` | Moyens et réseaux ouverts, activés, et leur ordre ; les régler |
 | `cancelPayment(id)` | Annuler un paiement que personne n'a commencé à payer (le client change d'offre) |
 | `listTransactions(limit, status, cursor)` | Historique paginé (`nextCursor()`) |
 | `refund(paymentId)`, `refund(paymentId, amount, fees, reference)` | Rembourser au numéro ou à la carte qui a payé |

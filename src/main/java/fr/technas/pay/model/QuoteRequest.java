@@ -13,7 +13,8 @@ import java.math.BigDecimal;
  * @param amount votre prix, en unité principale (5000 = 5 000 F CFA)
  * @param method {@code mobile_money} (défaut, {@code null}) ou {@code card}
  * @param country pays du client (ISO, ex. {@code TG}) ; {@code null} : tous les pays de la devise
- * @param network un réseau précis ({@code network} d'un devis précédent) ; {@code null} : tous ceux du pays
+ * @param network un réseau précis ({@code Network}, ex. {@code mixx} ; un ancien code comme {@code togocel}
+ *     reste accepté) ; {@code null} : tous ceux du pays
  * @param currency sans {@code country} : {@code XOF} ou {@code XAF}. Obligatoire par carte
  * @param fees {@code partner} ou {@code customer} ; {@code null} : le réglage de votre compte
  */

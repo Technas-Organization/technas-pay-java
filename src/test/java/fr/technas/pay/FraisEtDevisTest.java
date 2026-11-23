@@ -32,7 +32,7 @@ class FraisEtDevisTest {
 
     static Map<String, Object> devis() {
         Map<String, Object> reseau = new LinkedHashMap<>();
-        reseau.put("network", "togocel");
+        reseau.put("network", "mixx");
         reseau.put("network_name", "Mixx by Yas");
         reseau.put("customer_total", 214);
         reseau.put("processing_fee", 9);
@@ -134,7 +134,7 @@ class FraisEtDevisTest {
         eq(200, q.netAmount());
         assertEquals(1, q.networks().size());
         QuoteNetwork n = q.networks().get(0);
-        assertEquals("togocel", n.network());
+        assertEquals("mixx", n.network());
         assertEquals("Mixx by Yas", n.networkName());
         eq(214, n.customerTotal());
         eq(9, n.processingFee());

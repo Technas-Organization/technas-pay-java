@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import fr.technas.pay.internal.Json;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,6 +26,10 @@ import java.util.Map;
  *     réseaux tant qu'il n'a pas choisi le sien) ; {@code null} : inconnu (carte, hors franc CFA,
  *     serveur ancien)
  * @param processingFee les frais du réseau de paiement dans {@code customerTotal} ; {@code null} : inconnus
+ * @param network le réseau avec lequel le client a payé ({@code Network}, ex. {@code mixx}), une fois
+ *     payé ; {@code null} avant, par carte, ou sur un serveur ancien. Un réseau plus récent que ce SDK
+ *     est gardé tel quel
+ * @param networks les réseaux permis pour ce paiement, s'il les a restreints ; {@code null} sinon
  */
 public record Payment(
         String id, String reference, BigDecimal amount, String currency, BigDecimal commission, BigDecimal netAmount,
@@ -32,7 +37,8 @@ public record Payment(
         String checkoutUrl, Map<String, Object> metadata, boolean testMode,
         String createdAt, String completedAt, String expiresAt, String expiredAt,
         String canceledAt, String cancelReason, String reason,
-        BigDecimal customerAmount, String feesPaidBy, BigDecimal customerTotal, BigDecimal processingFee) {
+        BigDecimal customerAmount, String feesPaidBy, BigDecimal customerTotal, BigDecimal processingFee,
+        String network, List<String> networks) {
 
     public static Payment fromJson(JsonNode r) {
         String method = Json.nstr(r, "method");
@@ -48,7 +54,8 @@ public record Payment(
                 Json.nstr(r, "completed_at"), Json.nstr(r, "expires_at"), Json.nstr(r, "expired_at"),
                 Json.nstr(r, "canceled_at"), Json.nstr(r, "cancel_reason"), Json.nstr(r, "reason"),
                 customerAmount == null ? amount : customerAmount, feesPaidBy == null ? "partner" : feesPaidBy,
-                Json.nnum(r, "customer_total"), Json.nnum(r, "processing_fee"));
+                Json.nnum(r, "customer_total"), Json.nnum(r, "processing_fee"), Json.nstr(r, "network"),
+                r != null && r.has("networks") && r.get("networks").isArray() ? Json.strings(r, "networks") : null);
     }
 
     /**
