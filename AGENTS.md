@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.5.0</version>
+  <version>v0.6.0</version>
 </dependency>
 ```
 
@@ -29,6 +29,8 @@ Dépendance JitPack (voir le README) :
 | Besoin | Appel |
 |---|---|
 | Faire payer une commande | `pay.askForPayment(PaymentRequest.builder().amount(5000).reference(Status.retryReference(orderId, attempt)).customer(Customer.of(email, name)).returnUrl(…).build())`, puis rediriger (303) vers `payment.checkoutUrl()` |
+| Savoir combien le client paiera et combien vous recevrez, avant de créer le paiement | `pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build())` (ou `pay.getFees`) → `customerTotal()` (à afficher au client), `processingFee()`, `commission()`, `netAmount()`, `networks()` |
+| Faire payer TOUS les frais au client (vous recevez exactement `amount`) | `.fees("customer")` dans `PaymentRequest` (ou réglage du compte) ; `"partner"` : le client paie `amount`, frais compris |
 | Savoir qu'elle est payée | avis signé : `pay.handleWebhook(corpsBrut, signature, WebhookHandlers.builder().onCompleted(…).build())` |
 | Rattraper un avis manqué | `pay.getPaymentByReference(reference)` |
 | Le client change d'offre ou revient plus tard | `pay.cancelPayment(ancienId)`, puis nouvel essai `Status.retryReference(factureId, n + 1)` ; au retour, `pay.getPayment(dernierPaymentId)` d'abord (voir la section dédiée) |
@@ -181,6 +183,15 @@ Payment payer(Facture f, long montant) {
 })
 ```
 
+## Frais : qui les paie, combien paie le client
+
+- **`.fees("customer")`** : le client paie votre prix + les frais du réseau de paiement + la commission Technas ; vous recevez EXACTEMENT `amount`. **`.fees("partner")`** : le client paie `amount`, frais compris. Sans `fees` : le réglage du compte. Ne choisissez pas à la place de l'utilisateur : demandez-lui.
+- **Avant de créer le paiement**, `pay.quote(QuoteRequest.builder().amount(montant).country(pays).fees(mode).build())` (alias `pay.getFees`) rend `customerTotal()` : c'est CE montant qu'il faut afficher au client, jamais un calcul fait à la main. Rien n'est créé.
+- `networks()` donne chaque réseau (`networkName()`, `customerTotal()`, `operatorFeeEstimate()`). `operatorFeeEstimate()` est une estimation des frais propres de l'opérateur, hors Technas : présentez-la comme « environ », jamais comme une promesse.
+- Le paiement et l'avis portent `customerAmount()`, `feesPaidBy()`, `customerTotal()`, `processingFee()` (`null` : inconnu, serveur ancien ou carte). `amount()` reste le prix du marchand.
+- `amount_too_low` : `e.details().get("minimumAmount")` est le plus petit montant possible.
+- Par carte : `"partner"` seulement.
+
 ## Webhooks
 
 - **Ils peuvent arriver plusieurs fois** : vos fonctions doivent le supporter. Vérifiez l'état en base, ou gardez `event.id()`.
@@ -208,7 +219,7 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
    - Le lien expire en quelques minutes : générez-le au clic, ne l'envoyez jamais par e-mail.
    - Sur `refreshUrl`, rappelez `startCardOnboarding` et redirigez à nouveau.
    - Sur `returnUrl`, affichez `pay.getCardAccount()` : `status` dit où il en est (`onboarding`, `under_review`, `restricted`, `enabled`) et `requirements` ce qui manque.
-   - Le responsable y donne son identité et sa banque sur la page sécurisée de notre partenaire carte (Stripe), qui lui fera accepter son contrat. Ni vous ni Technas ne voyez son IBAN.
+   - Le responsable y donne son identité et sa banque sur la page sécurisée de notre partenaire carte, qui lui fera accepter son contrat. Ni vous ni Technas ne voyez son IBAN.
 2. **Proposer la carte seulement si `canAcceptPayments` est vrai.** Gardez l'état en base via `onCardAccountUpdated`, ou relisez `getCardAccount()`. Sinon, ne montrez que le mobile money.
 3. **Faire payer :** `PaymentRequest.builder().method("card").amount(new BigDecimal("49.90")).currency("EUR")…`, puis redirection vers `payment.checkoutUrl()`. `currency` est obligatoire par carte. Le reste est identique : même webhook `onCompleted`, même règle « une référence = un essai », même `payment.expired` au bout d'une heure.
 4. **L'argent va directement sur le compte carte de l'utilisateur**, commission Technas déjà retirée. Il n'apparaît PAS dans `getBalance()` et ne passe pas par les reversements. Les virements vers sa banque se règlent dans son tableau de bord carte (`getCardDashboardLink()`).
@@ -257,7 +268,8 @@ Ce n'est PAS le même parcours que le mobile money. Ne le proposez que si l'util
 | `invalid_secret` | Variable absente ou mal copiée : demandez à l'utilisateur de la vérifier |
 | `invalid_api_key` | Secret refusé : contacter Technas |
 | `invalid_request` | Corriger le champ indiqué dans le message |
-| `invalid_amount`, `amount_too_low` | Montant entier positif, assez grand pour couvrir les frais |
+| `invalid_amount`, `amount_too_low` | Montant entier positif, assez grand pour couvrir les frais : au moins `e.details().get("minimumAmount")` (`amount_too_low`) |
+| `fees_customer_unavailable` | `.fees("customer")` impossible ici (carte, hors franc CFA) : utiliser `"partner"` |
 | `currency_not_enabled` | Devise non ouverte sur ce compte : contacter Technas |
 | `currency_conversion_unavailable` | Client hors zone CFA, mode de change `none` : ne pas proposer ce pays ; voir `getFxMode()` |
 | `country_not_allowed` | Le marchand ne vend pas dans ce pays : ne pas le proposer |

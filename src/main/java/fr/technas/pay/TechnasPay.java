@@ -15,6 +15,8 @@ import fr.technas.pay.model.CardOnboardingLink;
 import fr.technas.pay.model.Customer;
 import fr.technas.pay.model.Payment;
 import fr.technas.pay.model.PaymentRequest;
+import fr.technas.pay.model.Quote;
+import fr.technas.pay.model.QuoteRequest;
 import fr.technas.pay.model.Refund;
 import fr.technas.pay.model.TopUp;
 import fr.technas.pay.model.TransactionPage;
@@ -50,7 +52,7 @@ import java.util.regex.Pattern;
  * }</pre>
  */
 public final class TechnasPay {
-    public static final String VERSION = "0.5.0";
+    public static final String VERSION = "0.6.0";
     public static final String DEFAULT_BASE_URL = "https://pay-api.technas.fr";
     public static final String SECRET_ENV = "TECHNAS_PAY_SECRET";
     private static final Pattern SECRET = Pattern.compile("^tps_(live|test)_([\\x21-\\x2d\\x2f-\\x7e]+)\\.([\\x21-\\x2d\\x2f-\\x7e]+)$"); // ASCII imprimable sans « . »
@@ -147,7 +149,8 @@ public final class TechnasPay {
 
     private static TechnasPayException fromResponse(int status, JsonNode d) {
         Map<String, Object> details = new LinkedHashMap<>();
-        for (String[] k : new String[][] {{"missing_amount", "missingAmount"}, {"refundable_amount", "refundableAmount"}}) {
+        for (String[] k : new String[][] {{"missing_amount", "missingAmount"}, {"refundable_amount", "refundableAmount"},
+                {"minimum_amount", "minimumAmount"}}) {
             BigDecimal n = Json.nnum(d, k[0]);
             if (n != null) {
                 details.put(k[1], n);
@@ -187,14 +190,27 @@ public final class TechnasPay {
         }
     }
 
+    private static String fees(String fees) {
+        if (fees != null && !"partner".equals(fees) && !"customer".equals(fees)) {
+            throw new TechnasPayException("invalid_request", "fees vaut \"partner\" ou \"customer\"");
+        }
+        return fees;
+    }
+
+    private static String method(String method) {
+        String m = method == null ? "mobile_money" : method;
+        if (!"mobile_money".equals(m) && !"card".equals(m)) {
+            throw new TechnasPayException("invalid_request", "method vaut \"mobile_money\" ou \"card\"");
+        }
+        return m;
+    }
+
     // --- Paiements ---------------------------------------------------------------------------
 
     /** Crée la demande de paiement ; redirigez ensuite le client (303) vers {@code checkoutUrl()}. */
     public Payment askForPayment(PaymentRequest in) {
-        String method = in.method() == null ? "mobile_money" : in.method();
-        if (!"mobile_money".equals(method) && !"card".equals(method)) {
-            throw new TechnasPayException("invalid_request", "method vaut \"mobile_money\" ou \"card\"");
-        }
+        String method = method(in.method());
+        String fees = fees(in.fees());
         positive(in.amount(), "mobile_money".equals(method));
         String currency = in.currency() == null ? "" : Ascii.upper(in.currency().trim());
         Customer c = in.customer();
@@ -241,7 +257,53 @@ public final class TechnasPay {
         if (in.askCountry()) {
             body.put("ask_country", true);
         }
+        if (fees != null) {
+            body.put("fees", fees);
+        }
         return Payment.fromJson(call("POST", "/v1/payments", body));
+    }
+
+    /**
+     * Le devis : pour un montant, ce que le client paiera ({@code customerTotal()}, à lui afficher) et
+     * ce que vous recevrez ({@code netAmount()}), réseau par réseau ({@code networks()}). Ne crée aucun
+     * paiement ; un paiement créé ensuite avec le même montant, le même pays et le même {@code fees}
+     * porte les mêmes montants. Montant trop petit : {@code amount_too_low}, avec
+     * {@code e.details().get("minimumAmount")}.
+     *
+     * <pre>{@code
+     * Quote q = pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build());
+     * q.customerTotal(); // 214 : le client paie 214, vous recevez 200
+     * }</pre>
+     */
+    public Quote quote(QuoteRequest in) {
+        String method = method(in.method());
+        String fees = fees(in.fees());
+        positive(in.amount(), "mobile_money".equals(method));
+        ObjectNode body = Json.object();
+        body.put("amount", in.amount().stripTrailingZeros().scale() <= 0 ? in.amount().setScale(0) : in.amount());
+        if (in.method() != null) {
+            body.put("method", method);
+        }
+        String country = in.country() == null ? "" : Ascii.upper(in.country().trim());
+        if (!country.isEmpty()) {
+            body.put("country", country);
+        }
+        if (in.network() != null && !in.network().isEmpty()) {
+            body.put("network", in.network());
+        }
+        String currency = in.currency() == null ? "" : Ascii.upper(in.currency().trim());
+        if (!currency.isEmpty()) {
+            body.put("currency", currency);
+        }
+        if (fees != null) {
+            body.put("fees", fees);
+        }
+        return Quote.fromJson(call("POST", "/v1/quotes", body));
+    }
+
+    /** Même chose que {@link #quote(QuoteRequest)} : combien le client paiera, combien vous recevrez. */
+    public Quote getFees(QuoteRequest in) {
+        return quote(in);
     }
 
     public Payment getPayment(String id) {

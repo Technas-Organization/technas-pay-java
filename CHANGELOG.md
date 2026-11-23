@@ -1,5 +1,15 @@
 # Journal
 
+## 0.6.0 (23/11/2026)
+
+Qui paie les frais, et combien paie le client :
+- `pay.quote(QuoteRequest)` (`POST /v1/quotes`) et son alias `pay.getFees(QuoteRequest)` → `Quote` : `customerTotal()` (ce que le client paie, à afficher), `processingFee()` (frais du réseau de paiement, `null` par carte), `commission()`, `netAmount()` (ce que vous recevez, `null` par carte), `customerAmount()`, `feesPaidBy()`, `networks()` (`QuoteNetwork` réseau par réseau : `network()`, `networkName()`, `customerTotal()`, `processingFee()`, `commission()`, `netAmount()`, `operatorFeeEstimate()` (estimation des frais propres de l'opérateur, jamais promise), `otpRequired()`, `otpInstructions()`). Rien n'est créé ;
+- `PaymentRequest.builder().fees("customer" | "partner")` : `"customer"`, le client paie tous les frais (réseau de paiement + commission) et vous recevez exactement `amount` ; `"partner"`, le client paie `amount`, frais compris ; absent, le réglage du compte ;
+- `Payment` (et l'avis `event.payment()`) : `customerAmount()`, `feesPaidBy()`, `customerTotal()`, `processingFee()` (serveur ancien : `amount()`, `"partner"`, `null`, `null`) ;
+- `amount_too_low` : `e.details().get("minimumAmount")`.
+
+Le constructeur des records `Payment` et `PaymentRequest` prend ces nouveaux champs à la fin.
+
 ## 0.5.0 (19/11/2026)
 
 Avis `settlement.completed` et `settlement.failed` (issue d'un reversement du solde vers le numéro mobile money) : `onSettlement`, `event.settlement()` (`Settlement` : `id()`, `amount()`, `fee()`, `netAmount()`, `currency()`, `status()`, `createdAt()` ; un champ absent est `null`). Sur `settlement.failed`, `amount()` est recrédité sur le solde.

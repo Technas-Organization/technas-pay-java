@@ -42,7 +42,8 @@ public final class TechnasPayException extends RuntimeException {
     /**
      * Précisions selon le code : {@code missingAmount} et {@code currency} ({@code insufficient_balance}),
      * {@code refundableAmount}, {@code reason}, {@code risk}, {@code accountStatus}, {@code consoleUrl}
-     * ({@code kyc_required}), {@code version} ({@code contract_required}).
+     * ({@code kyc_required}), {@code version} ({@code contract_required}), {@code minimumAmount}
+     * ({@code amount_too_low} : le plus petit montant possible, minimum du réseau, frais compris).
      */
     public Map<String, Object> details() {
         return Map.copyOf(details);

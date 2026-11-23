@@ -2,7 +2,7 @@
 
 Encaissez des paiements mobile money et par carte via Technas depuis un serveur Java ou Kotlin : Spring Boot, Quarkus, Micronaut, Ktor, ou Java sans framework.
 
-**Technas Pay réunit le mobile money et la carte dans un seul SDK, du serveur jusqu'à l'app Flutter.** Carte : 1 % (plus les frais de votre compte carte, selon le pays : environ 1,5 % + 0,25 € en Europe). Mobile money : 2 % (les frais de l'opérateur sont payés par le client). Sans abonnement, et une clé de test sans papier pour commencer.
+**Technas Pay réunit le mobile money et la carte dans un seul SDK, du serveur jusqu'à l'app Flutter.** Carte : 1 % (plus les frais de votre compte carte, selon le pays : environ 1,5 % + 0,25 € en Europe). Mobile money : 2 %, et vous choisissez qui paie les frais : le client (vous recevez exactement votre prix) ou vous (le client paie votre prix) ; `pay.quote` dit les montants avant le paiement. Sans abonnement, et une clé de test sans papier pour commencer.
 
 Devises et pays, pièces demandées, versements, comparaison avec les autres prestataires : [le hub Technas Pay](https://github.com/Technas-Organization/technas-pay).
 
@@ -24,7 +24,7 @@ Maven :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.5.0</version>
+  <version>v0.6.0</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ Gradle (Kotlin) :
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.5.0") }
+dependencies { implementation("com.github.Technas-Organization:technas-pay-java:v0.6.0") }
 ```
 
 Technas vous remet **un secret**. Mettez-le dans les variables d'environnement du serveur :
@@ -66,6 +66,44 @@ return ResponseEntity.status(303).location(URI.create(payment.checkoutUrl())).bu
 ```
 
 Calculez le montant côté serveur. Ne passez pas `currency` si vous vendez en francs CFA : la devise suit le pays du client (`new Customer(email, name, phone, "TG")`), ou le client choisit son pays sur la page. Par carte : `.method("card")`, une `.currency("EUR")`, décimales permises (`.amount(new BigDecimal("12.50"))`). Les montants sont des `BigDecimal`, jamais des `double`.
+
+### Qui paie les frais, et combien paie le client
+
+Deux modes, en mobile money (franc CFA). Le mode par défaut est celui de votre compte (demandez à Technas de le changer) ; chaque paiement peut le surcharger avec `.fees(...)`.
+
+| `fees` | Le client paie | Vous recevez |
+|---|---|---|
+| `"customer"` | votre prix + les frais du réseau de paiement + la commission Technas | **exactement votre prix** |
+| `"partner"` | **votre prix**, frais compris | votre prix − les frais |
+
+Pour savoir AVANT de créer le paiement combien le client paiera (le montant à lui afficher) et combien vous recevrez :
+
+```java
+import fr.technas.pay.model.Quote;
+import fr.technas.pay.model.QuoteRequest;
+
+Quote q = pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build());
+q.customerTotal();   // 214 : ce que le client paie (à afficher)
+q.processingFee();   // 9   : frais du réseau de paiement
+q.commission();      // 5   : commission Technas (2 %)
+q.netAmount();       // 200 : ce que vous recevez
+q.networks();        // le détail réseau par réseau (Mixx by Yas, Moov Money…)
+
+Quote p = pay.quote(QuoteRequest.builder().amount(1000).country("TG").fees("partner").build());
+// p.customerTotal() 1000, p.processingFee() 40, p.commission() 20, p.netAmount() 940
+
+Payment payment = pay.askForPayment(PaymentRequest.builder()
+        .amount(200).fees("customer") // le client paie 214, vous recevez 200
+        .reference(…).customer(…).returnUrl(…)
+        .build());
+```
+
+- `pay.getFees(...)` est le même appel que `pay.quote(...)`. Rien n'est créé.
+- Un paiement créé ensuite avec le même montant, le même pays et le même `fees` porte les mêmes montants : `payment.customerTotal()`, `payment.processingFee()`, `payment.netAmount()`, avec `payment.customerAmount()` et `payment.feesPaidBy()`. `payment.amount()` reste votre prix. L'avis `payment.*` (`event.payment()`) porte les mêmes champs. Sur un serveur ancien : `customerAmount()` vaut `amount()`, `feesPaidBy()` vaut `"partner"`, `customerTotal()` et `processingFee()` sont `null`.
+- Les frais du réseau de paiement suivent la grille du réseau. Le client choisit son réseau sur la page de paiement : `customerTotal()` est le plus haut des réseaux possibles, `networks().get(i).customerTotal()` le montant exact de chacun.
+- L'opérateur du client (Mixx by Yas, Moov…) peut prendre ses propres frais sur le téléphone, en dehors de Technas : `networks().get(i).operatorFeeEstimate()` en donne une estimation quand on la connaît (« environ »), jamais une promesse (`null` sinon).
+- Montant trop petit : `amount_too_low` avec `e.details().get("minimumAmount")`. Au Togo, le réseau n'accepte rien sous 200 F : en `"partner"`, 209 F au minimum ; en `"customer"`, 200 F passent.
+- Par carte, seulement `"partner"` : ajouter des frais au paiement par carte d'un consommateur est interdit en Europe. `pay.quote(QuoteRequest.builder().amount(20).method("card").currency("EUR").build())` rend la commission (`netAmount()` `null` : les frais de la carte dépendent de la carte du client).
 
 ## 3. Recevoir l'avis de paiement
 
@@ -133,6 +171,7 @@ Exemples complets, compilés en CI : [`examples/spring-boot`](examples/spring-bo
 | Méthode | Rôle |
 |---|---|
 | `getPayment(id)`, `getPaymentByReference(ref)` | Statut ; rattraper un avis manqué |
+| `quote(QuoteRequest)`, `getFees(QuoteRequest)` | Devis : ce que le client paiera (`customerTotal()`), ce que vous recevrez (`netAmount()`), réseau par réseau ; rien n'est créé |
 | `cancelPayment(id)` | Annuler un paiement que personne n'a commencé à payer (le client change d'offre) |
 | `listTransactions(limit, status, cursor)` | Historique paginé (`nextCursor()`) |
 | `refund(paymentId)`, `refund(paymentId, amount, fees, reference)` | Rembourser au numéro ou à la carte qui a payé |

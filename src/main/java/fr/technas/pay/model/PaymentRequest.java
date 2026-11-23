@@ -17,10 +17,15 @@ import java.util.Map;
  * }</pre>
  *
  * Par carte : {@code .method("card").currency("EUR")}, décimales permises.
+ *
+ * <p>{@code .fees("customer")} : le client paie tous les frais (réseau de paiement et commission
+ * Technas), vous recevez exactement {@code amount}. {@code .fees("partner")} : le client paie
+ * {@code amount}, frais compris. Sans {@code fees} : le réglage de votre compte.
  */
 public record PaymentRequest(BigDecimal amount, String reference, Customer customer, String returnUrl, String method,
                              String currency, String description, Map<String, Object> metadata,
-                             List<String> allowedCountries, List<String> excludedCountries, boolean askCountry) {
+                             List<String> allowedCountries, List<String> excludedCountries, boolean askCountry,
+                             String fees) {
 
     public static Builder builder() {
         return new Builder();
@@ -38,6 +43,7 @@ public record PaymentRequest(BigDecimal amount, String reference, Customer custo
         private List<String> allowedCountries;
         private List<String> excludedCountries;
         private boolean askCountry;
+        private String fees;
 
         private Builder() {
         }
@@ -104,9 +110,21 @@ public record PaymentRequest(BigDecimal amount, String reference, Customer custo
             return this;
         }
 
+        /**
+         * Qui paie les frais (mobile money en franc CFA) : {@code "customer"} (le client paie les frais
+         * du réseau de paiement ET la commission Technas ; vous recevez EXACTEMENT {@code amount}) ou
+         * {@code "partner"} (le client paie {@code amount}, frais compris). {@code null} : le réglage de
+         * votre compte. Par carte, seulement {@code "partner"} ({@code fees_customer_unavailable}).
+         * Les montants avant de créer le paiement : {@code pay.quote(...)}.
+         */
+        public Builder fees(String v) {
+            fees = v;
+            return this;
+        }
+
         public PaymentRequest build() {
             return new PaymentRequest(amount, reference, customer, returnUrl, method, currency, description, metadata,
-                    allowedCountries, excludedCountries, askCountry);
+                    allowedCountries, excludedCountries, askCountry, fees);
         }
     }
 }
