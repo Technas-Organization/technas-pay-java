@@ -20,7 +20,7 @@ Dépendance JitPack (voir le README) :
 <dependency>
   <groupId>com.github.Technas-Organization</groupId>
   <artifactId>technas-pay-java</artifactId>
-  <version>v0.7.0</version>
+  <version>v0.8.0</version>
 </dependency>
 ```
 
@@ -30,6 +30,8 @@ Dépendance JitPack (voir le README) :
 |---|---|
 | Faire payer une commande | `pay.askForPayment(PaymentRequest.builder().amount(5000).reference(Status.retryReference(orderId, attempt)).customer(Customer.of(email, name)).returnUrl(…).build())`, puis rediriger (303) vers `payment.checkoutUrl()` |
 | Savoir combien le client paiera et combien vous recevrez, avant de créer le paiement | `pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build())` (ou `pay.getFees`) → `customerTotal()` (à afficher au client), `processingFee()`, `commission()`, `netAmount()`, `networks()` |
+| Afficher un prix FIXE (le même quel que soit le réseau) et recevoir au moins X | `pay.displayPrice(DisplayPriceRequest.builder().receive(1000).countries(List.of("TG", "BJ")).roundTo(50).build())` → `byCountry().get(pays).price()`, `everywhere().price()` ; puis `askForPayment` avec `.amount(price).fees("partner")` (jamais `"customer"`) |
+| La grille des frais par pays et réseau (back-office) | `pay.getRates(country)` (ou `pay.rates`) → `countries().get(i).networks()` : `percent()`, `minimumAmount()`, `operatorFeeEstimate()`, `example1000().customer()/partner()` ; commission : `countries().get(i).commission()` |
 | Faire payer TOUS les frais au client (vous recevez exactement `amount`) | `.fees("customer")` dans `PaymentRequest` (ou réglage du compte) ; `"partner"` : le client paie `amount`, frais compris |
 | Lister les moyens et réseaux ouverts, ce qui est activé, l'ordre | `pay.getPaymentMethods(country)` ; constantes `TechnasPay.PAYMENT_METHODS`, `TechnasPay.NETWORKS` (une constante par valeur : `PaymentMethod.CARD`, `Network.MIXX`…) |
 | Activer / éteindre des moyens et réseaux, fixer l'ordre d'affichage | `pay.setPaymentMethods(PaymentMethodsRequest.builder().methods(…).networks(…).networkOrder(…).build())` ; par paiement : `.networks(List.of(Network.MIXX))` dans `PaymentRequest` |

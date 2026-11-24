@@ -1,6 +1,6 @@
 # technas-pay-java (Java, Kotlin)
 
-> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.7.0.
+> SDK Java 17+ et Kotlin (côté serveur : Spring Boot, Quarkus, Micronaut, Ktor) pour encaisser du mobile money en Afrique et des paiements par carte via Technas Pay, rembourser et recharger son solde. Une dépendance (jackson-databind). Montant seul, en F CFA : la devise (XOF ou XAF) suit le pays du client. Installation depuis GitHub par JitPack : com.github.Technas-Organization:technas-pay-java:v0.8.0.
 
 Agents de code : lisez d'abord AGENTS.md.
 
@@ -11,6 +11,7 @@ Une référence = un essai : `Status.retryReference(orderId, attempt)`. Relancez
 Reversement du solde vers le numéro mobile money : avis settlement.completed et settlement.failed, `onSettlement`, `event.settlement()` (amount, fee, netAmount) ; sur failed, amount est recrédité sur le solde.
 
 Frais : `.fees("customer")` (le client paie frais du réseau + commission ; vous recevez exactement `amount`) ou `"partner"` (le client paie `amount`, frais compris). Devis avant paiement : `pay.quote(QuoteRequest.builder().amount(200).country("TG").fees("customer").build())` / `pay.getFees` → `customerTotal()` (à afficher), `processingFee()`, `commission()`, `netAmount()`, `networks()` (dont `operatorFeeEstimate()`, « environ »). Paiement et avis : `customerAmount()`, `feesPaidBy()`, `customerTotal()`, `processingFee()`. `amount_too_low` → `e.details().get("minimumAmount")`. Carte : `"partner"` seulement.
+Prix affiché fixe : `pay.displayPrice(DisplayPriceRequest.builder().receive(1000).countries(List.of("TG", "BJ")).build())` → `byCountry().get(pays).price()`, `everywhere().price()` (`null` si XOF et XAF mélangés), `worstNetwork()` ; créer ensuite le paiement avec `.amount(price).fees("partner")` (en `"customer"`, le client paierait prix + frais). Grille des frais : `pay.getRates(country)` / `pay.rates`.
 
 Moyens et réseaux : constantes `TechnasPay.PAYMENT_METHODS` (`mobile_money`, `card`) et `TechnasPay.NETWORKS` (`mixx`, `moov`, `mtn_momo`, `orange_money`, `wave`…), une constante par valeur dans `PaymentMethod` et `Network` (des chaînes). `pay.getPaymentMethods(country)`, `pay.setPaymentMethods(PaymentMethodsRequest)`, `.networks(...)` par paiement ; `payment.network()` une fois payé. Refus : `method_not_enabled`, `network_not_enabled`, `network_not_available`.
 

@@ -2,6 +2,7 @@ package fr.technas.pay;
 
 import fr.technas.pay.internal.Ascii;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import fr.technas.pay.app.AppOrder;
 import fr.technas.pay.app.AppRequest;
@@ -13,12 +14,15 @@ import fr.technas.pay.model.AccountKyc;
 import fr.technas.pay.model.CardAccount;
 import fr.technas.pay.model.CardOnboardingLink;
 import fr.technas.pay.model.Customer;
+import fr.technas.pay.model.DisplayPrice;
+import fr.technas.pay.model.DisplayPriceRequest;
 import fr.technas.pay.model.Payment;
 import fr.technas.pay.model.PaymentMethods;
 import fr.technas.pay.model.PaymentMethodsRequest;
 import fr.technas.pay.model.PaymentRequest;
 import fr.technas.pay.model.Quote;
 import fr.technas.pay.model.QuoteRequest;
+import fr.technas.pay.model.Rates;
 import fr.technas.pay.model.Refund;
 import fr.technas.pay.model.TopUp;
 import fr.technas.pay.model.TransactionPage;
@@ -54,7 +58,7 @@ import java.util.regex.Pattern;
  * }</pre>
  */
 public final class TechnasPay {
-    public static final String VERSION = "0.7.0";
+    public static final String VERSION = "0.8.0";
 
     /** Tous les moyens de paiement, à énumérer : {@code mobile_money}, {@code card} (voir {@link PaymentMethod}). */
     public static final List<String> PAYMENT_METHODS = PaymentMethod.ALL;
@@ -330,6 +334,75 @@ public final class TechnasPay {
     /** Même chose que {@link #quote(QuoteRequest)} : combien le client paiera, combien vous recevrez. */
     public Quote getFees(QuoteRequest in) {
         return quote(in);
+    }
+
+    /**
+     * Le prix affiché FIXE : le plus petit prix rond qui vous laisse au moins {@code receive}, quel
+     * que soit le réseau du client. Créez ensuite le paiement avec ce prix et {@code fees("partner")}
+     * (jamais {@code "customer"} : le client paierait le prix PLUS les frais). {@code everywhere()} est
+     * {@code null} si des pays en XOF et en XAF sont mélangés. Les frais propres de l'opérateur du
+     * client (prélevés sur son téléphone, hors Technas) ne sont pas comptés.
+     *
+     * <pre>{@code
+     * DisplayPrice d = pay.displayPrice(DisplayPriceRequest.builder()
+     *     .receive(1000).countries(List.of("TG", "BJ")).roundTo(50).build());
+     * d.byCountry().get("TG").price(); // le prix à afficher au Togo
+     * d.everywhere();                  // un seul prix valable dans les deux pays, ou null
+     * pay.askForPayment(PaymentRequest.builder().amount(d.byCountry().get("TG").price()).fees("partner")...build());
+     * }</pre>
+     */
+    public DisplayPrice displayPrice(DisplayPriceRequest in) {
+        BigDecimal receive = in.receive();
+        if (receive == null || receive.signum() <= 0 || receive.stripTrailingZeros().scale() > 0) {
+            throw new TechnasPayException("invalid_amount", "receive doit être un entier positif (1000 = 1 000 FCFA)");
+        }
+        ObjectNode body = Json.object();
+        body.put("receive", receive.setScale(0));
+        String country = in.country() == null ? "" : Ascii.upper(in.country().trim());
+        if (!country.isEmpty()) {
+            body.put("country", country);
+        }
+        if (in.countries() != null && !in.countries().isEmpty()) {
+            ArrayNode countries = body.putArray("countries");
+            in.countries().forEach(c -> countries.add(c == null ? "" : Ascii.upper(c.trim())));
+        }
+        String currency = in.currency() == null ? "" : Ascii.upper(in.currency().trim());
+        if (!currency.isEmpty()) {
+            body.put("currency", currency);
+        }
+        if (in.roundTo() != null && in.roundTo() > 0) {
+            body.put("round_to", in.roundTo());
+        }
+        return DisplayPrice.fromJson(call("POST", "/v1/display-price", body));
+    }
+
+    /** Même chose que {@link #displayPrice(DisplayPriceRequest)}. */
+    public DisplayPrice getDisplayPrice(DisplayPriceRequest in) {
+        return displayPrice(in);
+    }
+
+    /** Voir {@link #getRates(String)}, tous pays. */
+    public Rates getRates() {
+        return getRates(null);
+    }
+
+    /**
+     * La grille des frais, par pays ouvert et par réseau : pourcentage, paliers, minimum, commission
+     * Technas, estimation des frais de l'opérateur, et un exemple à 1 000 dans chaque mode.
+     */
+    public Rates getRates(String country) {
+        String c = country == null ? "" : Ascii.upper(country.trim());
+        return Rates.fromJson(call("GET", "/v1/rates" + (c.isEmpty() ? "" : "?country=" + q(c)), null));
+    }
+
+    /** Même chose que {@link #getRates()}. */
+    public Rates rates() {
+        return getRates(null);
+    }
+
+    /** Même chose que {@link #getRates(String)}. */
+    public Rates rates(String country) {
+        return getRates(country);
     }
 
     public Payment getPayment(String id) {
