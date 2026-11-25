@@ -118,7 +118,7 @@ d.everywhere();                           // un seul prix valable dans les deux 
 d.byCountry().get("TG").worstNetwork();   // le réseau qui vous laisse le moins (au moins 1 000)
 
 pay.askForPayment(PaymentRequest.builder()
-        .amount(d.byCountry().get("TG").price()) // le client paie EXACTEMENT ce prix
+        .amount(d.byCountry().get("TG").price()) // le prix affiché (voir ⚠️ plus bas)
         .fees("partner")                         // pas "customer" !
         .currency("XOF")
         .reference("commande-42")
@@ -130,7 +130,7 @@ pay.askForPayment(PaymentRequest.builder()
 - Le prix est le plus petit multiple de `roundTo` (50 par défaut) qui vous laisse au moins `receive` sur **chaque** réseau ouvert du pays. Ce qui dépasse vous reste.
 - ⚠️ Avec `fees("customer")`, le client paierait votre prix **plus** les frais : un prix fixe se paie toujours en `"partner"`.
 - `everywhere()` est `null` si vous mélangez des pays en XOF et en XAF (deux monnaies, deux prix).
-- Les frais propres de l'opérateur du client (prélevés sur son téléphone, hors Technas) ne sont pas comptés.
+- ⚠️ Pas encore un prix fixe sur tous les réseaux : là où la demande sur le téléphone ajoute des frais (Mixx au Togo aujourd'hui), le client voit un peu plus que le prix affiché ; l'estimation par réseau du devis le dit. Nous travaillons à le supprimer.
 - `pay.getDisplayPrice(...)` est le même appel.
 
 ### La grille des frais, pays par pays
